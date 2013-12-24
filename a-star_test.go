@@ -32,14 +32,14 @@ func TestShortestPathWithHeuristic(t *testing.T) {
 	g.Connect("8", "9", 1)
 
 	// the heuristic function used here returns the absolute difference between the two ints as a simple guessing technique
-	_, ok := g.ShortestPathWithHeuristic("1", "9", func(key, otherKey string) int {
+	_, ok := g.ShortestPathWithHeuristic("1", "9", func(key, otherKey string) float64 {
 		diff := g.get(key).value.(int) - g.get(key).value.(int)
 
 		if diff < 0 {
 			diff = -diff
 		}
 
-		return diff
+		return float64(diff)
 	})
 
 	if !ok {
@@ -74,14 +74,14 @@ func TestShortestPathWithHeuristic(t *testing.T) {
 	g.Connect("8", "9", 1)
 
 	// the heuristic function used here returns the absolute difference between the two ints as a simple guessing technique
-	_, ok = g.ShortestPathWithHeuristic("1", "9", func(key, otherKey string) int {
+	_, ok = g.ShortestPathWithHeuristic("1", "9", func(key, otherKey string) float64 {
 		diff := g.get(key).value.(int) - g.get(key).value.(int)
 
 		if diff < 0 {
 			diff = -diff
 		}
 
-		return diff
+		return float64(diff)
 	})
 
 	if ok {
@@ -116,18 +116,18 @@ func ExampleShortestPathWithHeuristic() {
 	g.Connect("8", "9", 1)
 
 	// the heuristic function used here returns the absolute difference between the two ints as a simple guessing technique
-	path, ok := g.ShortestPathWithHeuristic("1", "9", func(key, otherKey string) int {
+	path, ok := g.ShortestPathWithHeuristic("1", "9", func(key, otherKey string) float64 {
 		diff := g.get(key).value.(int) - g.get(key).value.(int)
 
 		if diff < 0 {
 			diff = -diff
 		}
 
-		return diff
+		return float64(diff)
 	})
 
 	if !ok {
-		fmt.Println("something went wrong")
+		fmt.Print("something went wrong")
 	}
 
 	for _, key := range path {

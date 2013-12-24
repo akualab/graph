@@ -4,8 +4,8 @@ import (
 	"container/heap"
 )
 
-// Returns the shortest path from the vertex with key startKey to the vertex with key endKey as a string slice, and if such a path exists at all, using a function to calculate an estimated distance from a vertex to the endVertex. The heuristic function is passed the keys of a vertex and the end vertex. This function uses the A* search algorithm.
-func (g *Graph) ShortestPathWithHeuristic(startKey, endKey string, heuristic func(key, endKey string) int) (path []string, exists bool) {
+// Returns the shortest path from the vertex with key startKey to the vertex with key endKey as a string slice, and if such a path exists at all, using a function to calculate an estimated distance from a vertex to the endNode. The heuristic function is passed the keys of a vertex and the end vertex. This function uses the A* search algorithm.
+func (g *Graph) ShortestPathWithHeuristic(startKey, endKey string, heuristic func(key, endKey string) float64) (path []string, exists bool) {
 	g.RLock()
 	defer g.RUnlock()
 
@@ -17,10 +17,10 @@ func (g *Graph) ShortestPathWithHeuristic(startKey, endKey string, heuristic fun
 	openQueue := &priorityQueue{}
 
 	// priorityQueue for vertexes that have not yet been visited (open vertexes)
-	openList := map[*Vertex]*Item{}
+	openList := map[*Node]*Item{}
 
 	// list for vertexes that have been visited already (closed vertexes)
-	closedList := map[*Vertex]*Item{}
+	closedList := map[*Node]*Item{}
 
 	// add start vertex to list of open vertexes
 	item := &Item{start, nil, 0, 0, 0}
@@ -52,16 +52,16 @@ func (g *Graph) ShortestPathWithHeuristic(startKey, endKey string, heuristic fun
 		// saved here for easy usage in following loop
 		distance := closedList[current].distanceFromStart
 
-		for neighbor, weight := range current.GetNeighbors() {
-			if _, ok := closedList[neighbor]; ok {
+		for succesor, weight := range current.GetSuccesors() {
+			if _, ok := closedList[succesor]; ok {
 				continue
 			}
 
-			distanceToNeighbor := distance + weight
+			distanceToSuccesor := distance + weight
 
-			// skip neighbors that already have a better path leading to them
-			if md, ok := openList[neighbor]; ok {
-				if md.distanceFromStart < distanceToNeighbor {
+			// skip succesors that already have a better path leading to them
+			if md, ok := openList[succesor]; ok {
+				if md.distanceFromStart < distanceToSuccesor {
 					continue
 				} else {
 					heap.Remove(openQueue, md.index)
@@ -69,15 +69,15 @@ func (g *Graph) ShortestPathWithHeuristic(startKey, endKey string, heuristic fun
 			}
 
 			item := &Item{
-				neighbor,
+				succesor,
 				current,
-				distanceToNeighbor,
-				distanceToNeighbor + heuristic(neighbor.key, endKey), // estimate (= priority)
+				distanceToSuccesor,
+				distanceToSuccesor + heuristic(succesor.key, endKey), // estimate (= priority)
 				0,
 			}
 
-			// add neighbor vertex to list of open vertexes
-			openList[neighbor] = item
+			// add succesor vertex to list of open vertexes
+			openList[succesor] = item
 
 			// push into priority queue
 			heap.Push(openQueue, item)

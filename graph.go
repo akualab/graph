@@ -1,34 +1,41 @@
-// Package graph implements a weighted, undirected graph data structure.
+// Original work: Copyright (c) 2013 Alexander Willing, All rights reserved.
+// Modified work: Copyright (c) 2013 AKUALAB INC., All rights reserved.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Package graph implements a weighted, directed graph data structure.
 // See https://en.wikipedia.org/wiki/Graph_(abstract_data_type) for more information.
 package graph
 
 import (
+	"bytes"
 	"errors"
 	"sync"
 )
 
-type Vertex struct {
+type Node struct {
 	key       string
-	value     interface{}     // the stored value
-	neighbors map[*Vertex]int // maps the neighbor node to the weight of the connection to it
+	value     interface{}       // the stored value
+	succesors map[*Node]float64 // maps the succesor node to the weight of the connection to it
 	sync.RWMutex
 }
 
-// Returns the map of neighbors.
-func (v *Vertex) GetNeighbors() map[*Vertex]int {
+// Returns the map of succesors.
+func (v *Node) GetSuccesors() map[*Node]float64 {
 	if v == nil {
 		return nil
 	}
 
 	v.RLock()
-	neighbors := v.neighbors
+	succesors := v.succesors
 	v.RUnlock()
 
-	return neighbors
+	return succesors
 }
 
-// Returns the vertexes key.
-func (v *Vertex) Key() string {
+// Returns the nodees key.
+func (v *Node) Key() string {
 	if v == nil {
 		return ""
 	}
@@ -40,8 +47,8 @@ func (v *Vertex) Key() string {
 	return key
 }
 
-// Returns the Vertexes value.
-func (v *Vertex) Value() interface{} {
+// Returns the Nodes value.
+func (v *Node) Value() interface{} {
 	if v == nil {
 		return nil
 	}
@@ -54,21 +61,21 @@ func (v *Vertex) Value() interface{} {
 }
 
 type Graph struct {
-	vertexes map[string]*Vertex // A map of all the vertexes in this graph, indexed by their key.
+	nodes map[string]*Node // A map of all the nodes in this graph, indexed by their key.
 	sync.RWMutex
 }
 
 // Initializes a new graph.
 func New() *Graph {
-	return &Graph{map[string]*Vertex{}, sync.RWMutex{}}
+	return &Graph{map[string]*Node{}, sync.RWMutex{}}
 }
 
-// Returns the amount of vertexes contained in the graph.
+// Returns the amount of nodes contained in the graph.
 func (g *Graph) Len() int {
-	return len(g.vertexes)
+	return len(g.nodes)
 }
 
-// If there is no vertex with the specified key yet, Set creates a new vertex and stores the value. Else, Set updates the value, but leaves all connections intact.
+// If there is no node with the specified key yet, Set creates a new node and stores the value. Else, Set updates the value, but leaves all connections intact.
 func (g *Graph) Set(key string, value interface{}) {
 	// lock graph until this method is finished to prevent changes made by other goroutines
 	g.Lock()
@@ -79,10 +86,10 @@ func (g *Graph) Set(key string, value interface{}) {
 	// if no such node exists
 	if v == nil {
 		// create a new one
-		v = &Vertex{key, value, map[*Vertex]int{}, sync.RWMutex{}}
+		v = &Node{key, value, map[*Node]float64{}, sync.RWMutex{}}
 
 		// and add it to the graph
-		g.vertexes[key] = v
+		g.nodes[key] = v
 
 		return
 	}
@@ -93,36 +100,36 @@ func (g *Graph) Set(key string, value interface{}) {
 	v.Unlock()
 }
 
-// Deletes the vertex with the specified key. Returns false if key is invalid.
+// Deletes the node with the specified key. Returns false if key is invalid.
 func (g *Graph) Delete(key string) bool {
 	// lock graph until this method is finished to prevent changes made by other goroutines while this one is looping etc.
 	g.Lock()
 	defer g.Unlock()
 
-	// get vertex in question
+	// get node in question
 	v := g.get(key)
 	if v == nil {
 		return false
 	}
 
-	// iterate over neighbors, remove edges from neighboring vertexes
-	for neighbor, _ := range v.neighbors {
-		// delete edge to the to-be-deleted vertex
-		neighbor.Lock()
-		delete(neighbor.neighbors, v)
-		neighbor.Unlock()
+	// iterate over succesors, remove arcs from succesoring nodes
+	for succesor, _ := range v.succesors {
+		// delete arc to the to-be-deleted node
+		succesor.Lock()
+		delete(succesor.succesors, v)
+		succesor.Unlock()
 	}
 
-	// delete vertex
-	delete(g.vertexes, key)
+	// delete node
+	delete(g.nodes, key)
 
 	return true
 }
 
-// Returns a slice containing all vertexes. The slice is empty if the graph contains no nodes.
-func (g *Graph) GetAll() (all []*Vertex) {
+// Returns a slice containing all nodes. The slice is empty if the graph contains no nodes.
+func (g *Graph) GetAll() (all []*Node) {
 	g.RLock()
-	for _, v := range g.vertexes {
+	for _, v := range g.nodes {
 		all = append(all, v)
 	}
 	g.RUnlock()
@@ -130,8 +137,8 @@ func (g *Graph) GetAll() (all []*Vertex) {
 	return
 }
 
-// Returns the vertex with this key, or nil and an error if there is no vertex with this key.
-func (g *Graph) Get(key string) (v *Vertex, err error) {
+// Returns the node with this key, or nil and an error if there is no node with this key.
+func (g *Graph) Get(key string) (v *Node, err error) {
 	g.RLock()
 	v = g.get(key)
 	g.RUnlock()
@@ -144,36 +151,31 @@ func (g *Graph) Get(key string) (v *Vertex, err error) {
 }
 
 // Internal function, does NOT lock the graph, should only be used in between RLock() and RUnlock() (or Lock() and Unlock()).
-func (g *Graph) get(key string) *Vertex {
-	return g.vertexes[key]
+func (g *Graph) get(key string) *Node {
+	return g.nodes[key]
 }
 
-// Creates an edge between the vertexes specified by the keys. Returns false if one or both of the keys are invalid or if they are the same.
-// If there already is a connection, it is overwritten with the new edge weight.
-func (g *Graph) Connect(key string, otherKey string, weight int) bool {
-	// recursive edges are forbidden
-	if key == otherKey {
-		return false
-	}
+// Creates an arc between the nodes specified by the keys. Returns false if one or both of the keys are invalid.
+// If there already is a connection, it is overwritten with the new arc weight.
+func (g *Graph) Connect(from string, to string, weight float64) bool {
 
 	// lock graph for reading until this method is finished to prevent changes made by other goroutines while this one is running
 	g.RLock()
 	defer g.RUnlock()
 
-	// get vertexes and check for validity of keys
-	v := g.get(key)
-	otherV := g.get(otherKey)
+	// get nodes and check for validity of keys
+	v := g.get(from)
+	otherV := g.get(to)
 
 	if v == nil || otherV == nil {
 		return false
 	}
 
-	// add connection to both vertexes
+	// add arc to node
 	v.Lock()
 	otherV.Lock()
 
-	v.neighbors[otherV] = weight
-	otherV.neighbors[v] = weight
+	v.succesors[otherV] = weight
 
 	v.Unlock()
 	otherV.Unlock()
@@ -182,40 +184,35 @@ func (g *Graph) Connect(key string, otherKey string, weight int) bool {
 	return true
 }
 
-// Removes an edge connecting the two vertexes. Returns false if one or both of the keys are invalid or if they are the same.
-func (g *Graph) Disconnect(key string, otherKey string) bool {
-	// recursive edges are forbidden
-	if key == otherKey {
-		return false
-	}
+// Removes an arc connecting the two nodes. Returns false if one or both of the keys are invalid.
+func (g *Graph) Disconnect(from string, to string) bool {
 
 	// lock graph for reading until this method is finished to prevent changes made by other goroutines while this one is running
 	g.RLock()
 	defer g.RUnlock()
 
-	// get vertexes and check for validity of keys
-	v := g.get(key)
-	otherV := g.get(otherKey)
+	// get nodes and check for validity of keys
+	v := g.get(from)
+	otherV := g.get(to)
 
 	if v == nil || otherV == nil {
 		return false
 	}
 
-	// delete the edge from both vertexes
+	// delete the arc
 	v.Lock()
-	otherV.Lock()
+	//otherV.Lock()
 
-	delete(v.neighbors, otherV)
-	delete(otherV.neighbors, v)
+	delete(v.succesors, otherV)
 
 	v.Unlock()
-	otherV.Unlock()
+	//otherV.Unlock()
 
 	return true
 }
 
-// Returns true and the edge weight if there is an edge between the vertexes specified by their keys. Returns false if one or both keys are invalid, if they are the same, or if there is no edge between the vertexes.
-func (g *Graph) Adjacent(key string, otherKey string) (exists bool, weight int) {
+// Returns true and the arc weight if there is an arc between the nodes specified by their keys. Returns false if one or both keys are invalid, if they are the same, or if there is no arc between the nodes.
+func (g *Graph) Adjacent(key string, otherKey string) (exists bool, weight float64) {
 	// sanity check
 	if key == otherKey {
 		return
@@ -242,17 +239,17 @@ func (g *Graph) Adjacent(key string, otherKey string) (exists bool, weight int) 
 	otherV.RUnlock()
 	defer otherV.RLock()
 
-	// choose vertex with less edges (easier to find 1 in 10 than to find 1 in 100)
-	if len(v.neighbors) < len(otherV.neighbors) {
-		// iterate over it's map of edges; when the right vertex is found, return
-		for iteratingV, weight := range v.neighbors {
+	// choose node with less arcs (easier to find 1 in 10 than to find 1 in 100)
+	if len(v.succesors) < len(otherV.succesors) {
+		// iterate over it's map of arcs; when the right node is found, return
+		for iteratingV, weight := range v.succesors {
 			if iteratingV == otherV {
 				return true, weight
 			}
 		}
 	} else {
-		// iterate over it's map of edges; when the right vertex is found, return
-		for iteratingV, weight := range otherV.neighbors {
+		// iterate over it's map of arcs; when the right node is found, return
+		for iteratingV, weight := range otherV.succesors {
 			if iteratingV == v {
 				return true, weight
 			}
@@ -260,4 +257,12 @@ func (g *Graph) Adjacent(key string, otherKey string) (exists bool, weight int) 
 	}
 
 	return
+}
+
+// Returns the graph as a string in YAML format.
+func (g *Graph) String() (st string) {
+
+	buf := new(bytes.Buffer)
+	g.WriteYAML(buf)
+	return buf.String()
 }

@@ -10,7 +10,7 @@ import (
 func TestConnect(t *testing.T) {
 	g := New()
 
-	// set some vertexes
+	// set some nodes
 	g.Set("1", 123)
 	g.Set("2", 678)
 	g.Set("3", "abc")
@@ -68,7 +68,7 @@ func TestConnect(t *testing.T) {
 func TestDelete(t *testing.T) {
 	g := New()
 
-	// set some vertexes
+	// set some nodes
 	g.Set("1", 123)
 	g.Set("2", 678)
 	g.Set("3", "abc")
@@ -114,15 +114,15 @@ func TestDelete(t *testing.T) {
 	}
 
 	// test for orphaned connections
-	neighbors := g.get("2").GetNeighbors()
-	for n, _ := range neighbors {
+	succ := g.get("2").GetSuccesors()
+	for n, _ := range succ {
 		if n == one {
 			t.Fail()
 		}
 	}
 
-	neighbors = g.get("3").GetNeighbors()
-	for n, _ := range neighbors {
+	succ = g.get("3").GetSuccesors()
+	for n, _ := range succ {
 		if n == one {
 			t.Fail()
 		}
@@ -138,7 +138,7 @@ func TestGob(t *testing.T) {
 	g.Set("3", "abc")
 	g.Set("4", "xyz")
 
-	// connect vertexes/nodes
+	// connect nodes/nodes
 	g.Connect("1", "2", 5)
 	g.Connect("1", "3", 1)
 	g.Connect("2", "3", 9)
@@ -162,12 +162,12 @@ func TestGob(t *testing.T) {
 	}
 
 	// validate length of new graph
-	if len(g.vertexes) != len(newG.vertexes) {
+	if len(g.nodes) != len(newG.nodes) {
 		t.Fail()
 	}
 
 	// validate contents of new graph
-	for k, v := range g.vertexes {
+	for k, v := range g.nodes {
 		if newV := newG.get(k); newV.value != v.value {
 			t.Fail()
 		}
@@ -183,7 +183,7 @@ func ExampleGraph() {
 	g.Set("3", "abc")
 	g.Set("4", "xyz")
 
-	// connect vertexes/nodes
+	// connect nodes/nodes
 	g.Connect("1", "2", 5)
 	g.Connect("1", "3", 1)
 	g.Connect("2", "3", 9)
@@ -210,10 +210,10 @@ func ExampleGraph() {
 	}
 }
 
-func printVertexes(vSlice map[string]*Vertex) {
+func printNodes(vSlice map[string]*Node) {
 	for _, v := range vSlice {
 		fmt.Printf("%v\n", v.value)
-		for otherV, _ := range v.neighbors {
+		for otherV, _ := range v.succesors {
 			fmt.Printf("  → %v\n", otherV.value)
 		}
 	}
