@@ -5,14 +5,12 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 
 	"launchpad.net/goyaml"
 )
 
+// Struct to export/import a graph.
 type GraphIO struct {
 	inv   map[*Node]string
 	Nodes map[string]interface{}        `json:"nodes"`
@@ -119,31 +117,7 @@ func (g *Graph) WriteYAML(w io.Writer) error {
 	return e
 }
 
-// Writes Graph to a file in YAML.
-func (g *Graph) WriteYAMLFile(fn string) error {
-
-	if len(fn) == 0 {
-		return fmt.Errorf("Graph filename not specified.")
-	}
-
-	e := os.MkdirAll(filepath.Dir(fn), 0755)
-	if e != nil {
-		return e
-	}
-	f, err := os.Create(fn)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	ee := g.WriteYAML(f)
-	if ee != nil {
-		return ee
-	}
-
-	return nil
-}
-
+// Implements json.Marshaler interface.
 func (g *Graph) MarshalJSON() (b []byte, e error) {
 
 	gio := g.exportGraph()
@@ -152,6 +126,7 @@ func (g *Graph) MarshalJSON() (b []byte, e error) {
 	return
 }
 
+// Implements json.Unmarshaler interface.
 func (g *Graph) UnmarshalJSON(b []byte) error {
 
 	gio := &GraphIO{}
@@ -169,12 +144,14 @@ func (g *Graph) UnmarshalJSON(b []byte) error {
 
 }
 
+// Implements goyaml.Getter interface.
 func (g *Graph) GetYAML() (tag string, value interface{}) {
 
 	value = g.exportGraph()
 	return
 }
 
+// Implements goyaml.Setter interface.
 func (g *Graph) SetYAML(tag string, value interface{}) bool {
 
 	// Not sure this is right. I need to get the byte slice before

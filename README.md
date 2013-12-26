@@ -1,8 +1,19 @@
-# Graph
+# Graph Data Structure in Go <a href="http://goci.me/project/github.com/akualab/graph"><img src="http://goci.me/project/image/github.com/akualab/graph" /></a>
 
-This project is a fork from https://github.com/sauerbraten/graph-store Adapted to support directed graphs.
+**This project is a fork of https://github.com/sauerbraten/graph-store adapted to support directed graphs with weighted arcs.**
 
-A thread-safe implementation of a graph data structure in Go. See https://en.wikipedia.org/wiki/Graph_(abstract_data_type) for more information. This implementation is weighted and directed.
+Features:
+* Directed graph with weighted arcs.
+* Graph manipulation methods.
+* Thread safe.
+* A-Star search.
+* IO support for GOB/JSON/YAML
+
+Coming soon:
+* More graph manipulation methods (eg. merge graphs.)
+* Viterbi search.
+
+For more info about graphs visit https://en.wikipedia.org/wiki/Graph_(abstract_data_type)
 
 ## Usage
 
@@ -17,4 +28,4 @@ For full package documentation, visit http://godoc.org/github.com/akualab/graph
 
 ## License
 
-See LICENSE file.
+BSD-like. See LICENSE file for details.

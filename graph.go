@@ -22,40 +22,40 @@ type Node struct {
 }
 
 // Returns the map of succesors.
-func (v *Node) GetSuccesors() map[*Node]float64 {
-	if v == nil {
+func (node *Node) GetSuccesors() map[*Node]float64 {
+	if node == nil {
 		return nil
 	}
 
-	v.RLock()
-	succesors := v.succesors
-	v.RUnlock()
+	node.RLock()
+	succesors := node.succesors
+	node.RUnlock()
 
 	return succesors
 }
 
-// Returns the nodees key.
-func (v *Node) Key() string {
-	if v == nil {
+// Returns the node's key.
+func (node *Node) Key() string {
+	if node == nil {
 		return ""
 	}
 
-	v.RLock()
-	key := v.key
-	v.RUnlock()
+	node.RLock()
+	key := node.key
+	node.RUnlock()
 
 	return key
 }
 
-// Returns the Nodes value.
-func (v *Node) Value() interface{} {
-	if v == nil {
+// Returns the node's value.
+func (node *Node) Value() interface{} {
+	if node == nil {
 		return nil
 	}
 
-	v.RLock()
-	value := v.value
-	v.RUnlock()
+	node.RLock()
+	value := node.value
+	node.RUnlock()
 
 	return value
 }
@@ -150,7 +150,8 @@ func (g *Graph) Get(key string) (v *Node, err error) {
 	return
 }
 
-// Internal function, does NOT lock the graph, should only be used in between RLock() and RUnlock() (or Lock() and Unlock()).
+// Internal function, does NOT lock the graph, should only be used in between RLock()
+// and RUnlock() (or Lock() and Unlock()).
 func (g *Graph) get(key string) *Node {
 	return g.nodes[key]
 }
@@ -159,7 +160,8 @@ func (g *Graph) get(key string) *Node {
 // If there already is a connection, it is overwritten with the new arc weight.
 func (g *Graph) Connect(from string, to string, weight float64) bool {
 
-	// lock graph for reading until this method is finished to prevent changes made by other goroutines while this one is running
+	// lock graph for reading until this method is finished to prevent changes made
+	// by other goroutines while this one is running
 	g.RLock()
 	defer g.RUnlock()
 
@@ -184,10 +186,32 @@ func (g *Graph) Connect(from string, to string, weight float64) bool {
 	return true
 }
 
+// Creates an arc to a target node. Returns false if the target node is nil.
+// If there already is a connection, it is overwritten with the new weight.
+func (node *Node) Connect(toNode *Node, weight float64) bool {
+
+	if toNode == nil {
+		return false
+	}
+
+	// add arc to node
+	node.Lock()
+	toNode.Lock()
+
+	node.succesors[toNode] = weight
+
+	node.Unlock()
+	toNode.Unlock()
+
+	// success
+	return true
+}
+
 // Removes an arc connecting the two nodes. Returns false if one or both of the keys are invalid.
 func (g *Graph) Disconnect(from string, to string) bool {
 
-	// lock graph for reading until this method is finished to prevent changes made by other goroutines while this one is running
+	// lock graph for reading until this method is finished to prevent changes made by other
+	// goroutines while this one is running
 	g.RLock()
 	defer g.RUnlock()
 
@@ -211,48 +235,76 @@ func (g *Graph) Disconnect(from string, to string) bool {
 	return true
 }
 
-// Returns true and the arc weight if there is an arc between the nodes specified by their keys. Returns false if one or both keys are invalid, if they are the same, or if there is no arc between the nodes.
-func (g *Graph) Adjacent(key string, otherKey string) (exists bool, weight float64) {
-	// sanity check
-	if key == otherKey {
-		return
+// Removes arc connecting to target node. Returns false if target node is nil.
+func (node *Node) Disconnect(toNode *Node) bool {
+
+	if toNode == nil {
+		return false
 	}
+
+	// add arc to node
+	node.Lock()
+	toNode.Lock()
+
+	tmp := toNode // keep it around until we unlock.
+	delete(node.succesors, toNode)
+
+	node.Unlock()
+	toNode.Unlock()
+	_ = tmp
+
+	// success
+	return true
+}
+
+// Returns true and the arc weight if there is an arc between the nodes specified by their keys.
+// Returns false if one or both keys are invalid or if there is no arc between the nodes.
+func (g *Graph) IsConnected(from string, to string) (exists bool, weight float64) {
 
 	g.RLock()
 
-	v := g.get(key)
-	if v == nil {
+	fromV := g.get(from)
+	if fromV == nil {
 		g.RUnlock()
 		return
 	}
 
-	otherV := g.get(otherKey)
-	if otherV == nil {
+	toV := g.get(to)
+	if toV == nil {
 		g.RUnlock()
 		return
 	}
 
 	g.RUnlock()
 
-	v.RLock()
-	defer v.RUnlock()
-	otherV.RUnlock()
-	defer otherV.RLock()
+	fromV.RLock()
+	defer fromV.RUnlock()
+	toV.RUnlock()
+	defer toV.RLock()
 
-	// choose node with less arcs (easier to find 1 in 10 than to find 1 in 100)
-	if len(v.succesors) < len(otherV.succesors) {
-		// iterate over it's map of arcs; when the right node is found, return
-		for iteratingV, weight := range v.succesors {
-			if iteratingV == otherV {
-				return true, weight
-			}
+	// iterate over it's map of arcs; when the right node is found, return
+	for succV, weight := range fromV.succesors {
+		if succV == toV {
+			return true, weight
 		}
-	} else {
-		// iterate over it's map of arcs; when the right node is found, return
-		for iteratingV, weight := range otherV.succesors {
-			if iteratingV == v {
-				return true, weight
-			}
+	}
+
+	return
+}
+
+// Returns true and the arc weight if there is an arc to the target node.
+// Returns false if there is no arc.
+func (node *Node) IsConnected(toNode *Node) (exists bool, weight float64) {
+
+	node.RLock()
+	defer node.RUnlock()
+	toNode.RUnlock()
+	defer toNode.RLock()
+
+	// iterate over it's map of arcs; when the right node is found, return
+	for succV, weight := range node.succesors {
+		if succV == toNode {
+			return true, weight
 		}
 	}
 

@@ -3,97 +3,112 @@ package graph
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
+
+	"launchpad.net/goyaml"
 )
 
 func TestConnect(t *testing.T) {
-	g := New()
 
-	// set some nodes
-	g.Set("1", 123)
-	g.Set("2", 678)
-	g.Set("3", "abc")
-	g.Set("4", "xyz")
-
-	// make some connections
-	ok := g.Connect("1", "2", 5)
-	if !ok {
-		t.Fail()
-	}
-
-	ok = g.Connect("1", "3", 1)
-	if !ok {
-		t.Fail()
-	}
-
-	ok = g.Connect("2", "3", 9)
-	if !ok {
-		t.Fail()
-	}
-
-	ok = g.Connect("4", "2", 3)
-	if !ok {
-		t.Fail()
-	}
+	g := sampleGraph(t)
 
 	// test connections
-	ok, weight := g.Adjacent("1", "2")
+	ok, weight := g.IsConnected("1", "2")
 	if !ok || weight != 5 {
 		t.Fail()
 	}
 
-	ok, weight = g.Adjacent("1", "3")
+	ok, weight = g.IsConnected("1", "3")
 	if !ok || weight != 1 {
 		t.Fail()
 	}
 
-	ok, weight = g.Adjacent("2", "3")
+	ok, weight = g.IsConnected("2", "3")
 	if !ok || weight != 9 {
 		t.Fail()
 	}
 
-	ok, weight = g.Adjacent("4", "2")
+	ok, weight = g.IsConnected("4", "2")
 	if !ok || weight != 3 {
 		t.Fail()
 	}
 
 	// test non-connections
-	ok, _ = g.Adjacent("1", "4")
+	ok, _ = g.IsConnected("1", "4")
 	if ok {
 		t.Fail()
 	}
 }
 
+func TestNodeConnect(t *testing.T) {
+
+	var ok bool
+	var weight float64
+
+	g := sampleGraph(t)
+
+	// get nodes
+	node1, node2, node3, node4 := getSampleNodes(t, g)
+
+	ok, weight = node1.IsConnected(node2)
+	if !ok || weight != 5 {
+		t.Fail()
+	}
+
+	ok, weight = node1.IsConnected(node3)
+	if !ok || weight != 1 {
+		t.Fail()
+	}
+
+	ok, weight = node2.IsConnected(node3)
+	if !ok || weight != 9 {
+		t.Fail()
+	}
+
+	ok, weight = node4.IsConnected(node2)
+	if !ok || weight != 3 {
+		t.Fail()
+	}
+
+	// test non-connections
+	ok, _ = node1.IsConnected(node4)
+	if ok {
+		t.Fail()
+	}
+
+	// test disconnect
+	ok = node1.Disconnect(node2)
+	if !ok {
+		t.Fatalf("Failed to disconnect.")
+	}
+
+	// create a new sample graph.
+	g1 := sampleGraph(t)
+
+	// They should NOT match.
+	if e := compareGraphs(g, g1); e == nil {
+		t.Fatalf("Graph matched, expected no match.")
+	}
+
+	// Reconnect the nodes.
+	ok = node1.Connect(node2, 5)
+	if !ok {
+		t.Fatalf("Failed to connect.")
+	}
+
+	// They should match now.
+	if e := compareGraphs(g, g1); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func TestDelete(t *testing.T) {
-	g := New()
 
-	// set some nodes
-	g.Set("1", 123)
-	g.Set("2", 678)
-	g.Set("3", "abc")
-	g.Set("4", "xyz")
-
-	// make some connections
-	ok := g.Connect("1", "2", 5)
-	if !ok {
-		t.Fail()
-	}
-
-	ok = g.Connect("1", "3", 1)
-	if !ok {
-		t.Fail()
-	}
-
-	ok = g.Connect("2", "3", 9)
-	if !ok {
-		t.Fail()
-	}
-
-	ok = g.Connect("4", "2", 3)
-	if !ok {
-		t.Fail()
-	}
+	g := sampleGraph(t)
 
 	// preserve a pointer to node "1"
 	one := g.get("1")
@@ -102,7 +117,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	// delete node
-	ok = g.Delete("1")
+	ok := g.Delete("1")
 	if !ok {
 		t.Fail()
 	}
@@ -130,19 +145,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestGob(t *testing.T) {
-	g := New()
-
-	// set key → value pairs
-	g.Set("1", 123)
-	g.Set("2", 678)
-	g.Set("3", "abc")
-	g.Set("4", "xyz")
-
-	// connect nodes/nodes
-	g.Connect("1", "2", 5)
-	g.Connect("1", "3", 1)
-	g.Connect("2", "3", 9)
-	g.Connect("4", "2", 3)
+	g := sampleGraph(t)
 
 	// encode
 	buf := &bytes.Buffer{}
@@ -172,6 +175,83 @@ func TestGob(t *testing.T) {
 			t.Fail()
 		}
 	}
+}
+
+func TestYAML(t *testing.T) {
+
+	// Get the sample graph.
+	g0 := sampleGraph(t)
+
+	// Create sample graph JSON file in temp dir for testing.
+	fn := os.TempDir() + "graph.yaml"
+	t.Logf("yaml file: %s", fn)
+	err := ioutil.WriteFile(fn, []byte(graphData), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Read YAML file.
+	dat, ee := ioutil.ReadFile(fn)
+	if ee != nil {
+		t.Fatal(err)
+	}
+
+	g1 := New()
+	err = goyaml.Unmarshal(dat, g1)
+	if err != nil {
+		panic(err)
+	}
+
+	if e := compareGraphs(g0, g1); e != nil {
+		t.Fatal(e)
+	}
+
+	// Write YAML file.
+	b, eb := goyaml.Marshal(g0)
+	if eb != nil {
+		panic(eb)
+	}
+	fn = os.TempDir() + "graph2.yaml"
+	err = ioutil.WriteFile(fn, b, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+}
+
+func TestJSON(t *testing.T) {
+
+	// Get the sample graph.
+	g0 := sampleGraph(t)
+	fn := os.TempDir() + "graph.json"
+	t.Logf("json file: %s", fn)
+
+	// Write YAML file.
+	b, eb := json.Marshal(g0)
+	if eb != nil {
+		panic(eb)
+	}
+	err := ioutil.WriteFile(fn, b, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	// Read JSON file back and compare.
+	dat, ee := ioutil.ReadFile(fn)
+	if ee != nil {
+		t.Fatal(err)
+	}
+
+	g2 := New()
+	err = json.Unmarshal(dat, g2)
+	if err != nil {
+		panic(err)
+	}
+
+	if e := compareGraphs(g0, g2); e != nil {
+		t.Fatal(e)
+	}
+
 }
 
 func ExampleGraph() {
@@ -210,6 +290,120 @@ func ExampleGraph() {
 	}
 }
 
+// Checks if there is a mismatch between two graphs.
+// NOTE. The value in node is an interface. When unmarshaling, the value
+// may be interpreted as int or float64. We convert int to float64 to
+// compare numbers of the same type.
+func compareGraphs(g1, g2 *Graph) (e error) {
+
+	if e := includeGraphs(g1, g2); e != nil {
+		return e
+	}
+	// reverse order.
+	return includeGraphs(g2, g1)
+
+}
+
+// Checks if g2 is included in g1.
+func includeGraphs(g1, g2 *Graph) (e error) {
+
+	// check length
+	if len(g1.nodes) != len(g2.nodes) {
+		return fmt.Errorf("graph length mismatch")
+	}
+
+	// check node contents
+	for k1, v1 := range g1.nodes {
+		val, ok := (v1.value).(int)
+		if ok {
+			v1.value = float64(val)
+		}
+
+		v2 := g2.get(k1)
+		val, ok = (v2.value).(int)
+		if ok {
+			v2.value = float64(val)
+		}
+
+		if v2.value != v1.value {
+			return fmt.Errorf("graph content mismatch. [%+v] of type [%T] vs. [%+v] of type [%T]", v1.value, v1.value, v2.value, v2.value)
+		}
+	}
+
+	// check connections.
+	for k1, v1 := range g1.nodes {
+		for v2, w1 := range v1.succesors {
+			k2 := v2.key
+
+			// check if there is connection from k1 to k2 in the other graph.
+			ok, w2 := g2.IsConnected(k1, k2)
+			if !ok {
+				return fmt.Errorf("arc mismatch. from [%s] to [%s]", k1, k2)
+			}
+			if w1 != w2 {
+				return fmt.Errorf("weight mismatch. from [%s] to [%s], got weight [%f] vs weight [%f]", w1, w2)
+			}
+		}
+	}
+	return
+}
+
+func sampleGraph(t *testing.T) *Graph {
+
+	g := New()
+
+	// set some nodes
+	g.Set("1", 123)
+	g.Set("2", 678)
+	g.Set("3", "abc")
+	g.Set("4", "xyz")
+
+	// make some connections
+	ok := g.Connect("1", "2", 5)
+	if !ok {
+		t.Fail()
+	}
+
+	ok = g.Connect("1", "3", 1)
+	if !ok {
+		t.Fail()
+	}
+
+	ok = g.Connect("2", "3", 9)
+	if !ok {
+		t.Fail()
+	}
+
+	ok = g.Connect("4", "2", 3)
+	if !ok {
+		t.Fail()
+	}
+
+	return g
+}
+
+func getSampleNodes(t *testing.T, g *Graph) (node1, node2, node3, node4 *Node) {
+
+	var e error
+	node1, e = g.Get("1")
+	if e != nil {
+		t.Fatal(e)
+	}
+	node2, e = g.Get("2")
+	if e != nil {
+		t.Fatal(e)
+	}
+	node3, e = g.Get("3")
+	if e != nil {
+		t.Fatal(e)
+	}
+	node4, e = g.Get("4")
+	if e != nil {
+		t.Fatal(e)
+	}
+	return
+}
+
 func printNodes(vSlice map[string]*Node) {
 	for _, v := range vSlice {
 		fmt.Printf("%v\n", v.value)
@@ -218,3 +412,20 @@ func printNodes(vSlice map[string]*Node) {
 		}
 	}
 }
+
+const graphData string = `
+nodes:
+  "1": 123
+  "2": 678
+  "3": abc
+  "4": xyz
+arcs:
+  "1":
+    "2": 5
+    "3": 1
+  "2":
+    "3": 9
+  "3": {}
+  "4":
+    "2": 3
+`
