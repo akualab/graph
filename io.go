@@ -57,7 +57,8 @@ func (g *Graph) exportGraph() (gio *GraphIO) {
 	return
 }
 
-// Encodes the graph into a []byte. With this method, graph implements the gob.GobEncoder interface.
+// Encodes the graph into a []byte. With this method, graph implements the
+// gob.GobEncoder interface.
 func (g *Graph) GobEncode() ([]byte, error) {
 	// build inverted map
 	inv := map[*Node]string{}
@@ -82,7 +83,8 @@ func (g *Graph) GobEncode() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-// Decodes a []byte into the graphs nodes and arcs. With this method, graph implements the gob.GobDecoder interface.
+// Decodes a []byte into the graphs nodes and arcs. With this method, graph implements the
+// gob.GobDecoder interface.
 func (g *Graph) GobDecode(b []byte) (err error) {
 	// decode into GraphIO
 	gGob := &GraphIO{}

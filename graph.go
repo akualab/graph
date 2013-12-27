@@ -10,6 +10,7 @@ package graph
 
 import (
 	"bytes"
+	"encoding/gob"
 	"errors"
 	"sync"
 )
@@ -308,6 +309,30 @@ func (node *Node) IsConnected(toNode *Node) (exists bool, weight float64) {
 		}
 	}
 
+	return
+}
+
+// Returns an identical copy of the graph.
+func (g *Graph) Clone() (newG *Graph, e error) {
+
+	// lock graph for reading until this method is finished to prevent changes made
+	// by other goroutines while this one is running
+	g.RLock()
+	defer g.RUnlock()
+
+	// encode
+	buf := &bytes.Buffer{}
+	enc := gob.NewEncoder(buf)
+
+	e = enc.Encode(g)
+	if e != nil {
+		return
+	}
+
+	// now decode into new graph
+	dec := gob.NewDecoder(buf)
+	newG = New()
+	e = dec.Decode(newG)
 	return
 }
 

@@ -150,6 +150,19 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+func TestClone(t *testing.T) {
+	g := sampleGraph(t)
+
+	g1, e := g.Clone()
+	if e != nil {
+		t.Fatal(e)
+	}
+
+	if e := compareGraphs(g, g1); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func TestGob(t *testing.T) {
 	g := sampleGraph(t)
 
