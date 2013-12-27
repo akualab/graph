@@ -12,8 +12,15 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"math"
+	"sort"
 	"sync"
 )
+
+type Graph struct {
+	nodes map[string]*Node // A map of all the nodes in this graph, indexed by their key.
+	sync.RWMutex
+}
 
 type Node struct {
 	key       string
@@ -61,22 +68,18 @@ func (node *Node) Value() interface{} {
 	return value
 }
 
-type Graph struct {
-	nodes map[string]*Node // A map of all the nodes in this graph, indexed by their key.
-	sync.RWMutex
-}
-
 // Initializes a new graph.
 func New() *Graph {
 	return &Graph{map[string]*Node{}, sync.RWMutex{}}
 }
 
-// Returns the amount of nodes contained in the graph.
+// Returns the number of nodes contained in the graph.
 func (g *Graph) Len() int {
 	return len(g.nodes)
 }
 
-// If there is no node with the specified key yet, Set creates a new node and stores the value. Else, Set updates the value, but leaves all connections intact.
+// If there is no node with the specified key yet, Set creates a new node and stores the value.
+// Else, Set updates the value, but leaves all connections intact.
 func (g *Graph) Set(key string, value interface{}) {
 	// lock graph until this method is finished to prevent changes made by other goroutines
 	g.Lock()
@@ -312,7 +315,7 @@ func (node *Node) IsConnected(toNode *Node) (exists bool, weight float64) {
 	return
 }
 
-// Returns an identical copy of the graph.
+// Returns an identical copy of the graph. Goroutine safe, locks the graph.
 func (g *Graph) Clone() (newG *Graph, e error) {
 
 	// lock graph for reading until this method is finished to prevent changes made
@@ -336,6 +339,83 @@ func (g *Graph) Clone() (newG *Graph, e error) {
 	return
 }
 
+// Converts arc weights to probabilities such that the sum of weights of
+// outgoing arcs from node equals one. If isLog is true the log probability
+// is stored. Note that there is no lock in this private method.
+func (node *Node) normalizeWeights(isLog bool) {
+
+	var sum float64
+	for _, w := range node.succesors {
+		sum += w
+	}
+	for snode, w := range node.succesors {
+		node.Connect(snode, math.Log(w/sum))
+	}
+}
+
+// Converts weights to probabilities such that the sum of weights of
+// outgoing arcs from node equals one. Locks entire graph. If isLog is true
+// the log probability is stored.
+func (g *Graph) NormalizeWeights(isLog bool) {
+
+	g.Lock()
+	defer g.Unlock()
+
+	for _, node := range g.nodes {
+		node.normalizeWeights(isLog)
+	}
+}
+
+// Returns a slice of keys sorted alphabetically and the corresponding
+// transition matrix of type [][]float64. Rows with no arcs
+// have a nil slice. If isLog is true, missing connections are set to -Inf,
+// zero otherwise. Locks the graph.
+func (g *Graph) TransitionMatrix(isLog bool) (keys []string, weights [][]float64) {
+
+	g.Lock()
+	defer g.Unlock()
+
+	n := g.Len()
+	weights = make([][]float64, n)
+
+	// Put nodes in a slice.
+	nodes := make([]*Node, n)
+	keys = make([]string, n)
+	index := make(map[*Node]int)
+	var k int
+	for _, x := range g.nodes {
+		nodes[k] = x
+		k += 1
+	}
+
+	// Sort nodes by name.
+	sort.Sort(ByName{nodes})
+
+	// Map Node name to matrix index.
+	for k, v := range nodes {
+		index[v] = k
+	}
+
+	// Put transition weights in matrix.
+	for _, fromNode := range nodes {
+		i := index[fromNode]
+		keys[i] = fromNode.key
+		for toNode, w := range fromNode.succesors {
+			j := index[toNode]
+			if len(weights[i]) == 0 {
+				weights[i] = make([]float64, n)
+				if isLog {
+					for m := 0; m < n; m++ {
+						weights[i][m] = math.Inf(-1)
+					}
+				}
+			}
+			weights[i][j] = w
+		}
+	}
+	return
+}
+
 // Returns the graph as a string in YAML format.
 func (g *Graph) String() (st string) {
 
@@ -343,3 +423,15 @@ func (g *Graph) String() (st string) {
 	g.WriteYAML(buf)
 	return buf.String()
 }
+
+// Sort Nodes.
+
+type Nodes []*Node
+
+func (s Nodes) Len() int      { return len(s) }
+func (s Nodes) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// ByName implements sort.Interface by providing Less and using the Len and
+type ByName struct{ Nodes }
+
+func (s ByName) Less(i, j int) bool { return s.Nodes[i].key < s.Nodes[j].key }

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"testing"
 
@@ -146,6 +147,118 @@ func TestDelete(t *testing.T) {
 	for n, _ := range succ {
 		if n == one {
 			t.Fail()
+		}
+	}
+}
+
+func TestTransitionMatrix(t *testing.T) {
+
+	g := sampleGraph(t)
+	keys, weights := g.TransitionMatrix(false)
+	lastKey := ""
+
+	for i, from := range keys {
+
+		// check alphabetic order.
+		if keys[i] < lastKey {
+			t.Fatalf("not in alphabetic order expected [%s] >=  [%s]", keys[i], lastKey)
+		}
+
+		// skip if no arcs!
+		if len(weights[i]) == 0 {
+			continue // no arcs for this node.
+		}
+		for j, to := range keys {
+			ok, w := g.IsConnected(from, to)
+			if ok {
+				if weights[i][j] != w {
+					t.Fatalf("weights don't match [%f] vs. [%f]", weights[i][j], w)
+				}
+			} else {
+				if weights[i][j] != 0 {
+					t.Fatalf("expected zero weight, got [%f]", weights[i][j])
+				}
+			}
+		}
+	}
+}
+
+func TestLogTransitionMatrix(t *testing.T) {
+
+	g := sampleGraph(t)
+	keys, weights := g.TransitionMatrix(true)
+
+	for i, from := range keys {
+
+		// skip if no arcs!
+		if len(weights[i]) == 0 {
+			continue // no arcs for this node.
+		}
+		for j, to := range keys {
+			ok, w := g.IsConnected(from, to)
+			if ok {
+				if weights[i][j] != w {
+					t.Fatalf("weights don't match [%f] vs. [%f]", weights[i][j], w)
+				}
+			} else {
+				if weights[i][j] != math.Inf(-1) {
+					t.Fatalf("expected zero weight, got [%f]", weights[i][j])
+				}
+			}
+		}
+	}
+}
+
+func TestLogProbs(t *testing.T) {
+
+	g0 := sampleGraph(t)
+
+	g1, _ := g0.Clone()
+	g1.NormalizeWeights(true)
+
+	keys, weights0 := g0.TransitionMatrix(false)
+	_, weights1 := g1.TransitionMatrix(true)
+	n := len(weights0)
+
+	if n != len(weights1) {
+		t.Fatalf("length mismatch [%d] vs. [%d]", n, len(weights1))
+	}
+
+	for i := 0; i < n; i++ {
+
+		// skip if no arcs!
+		if len(weights0[i]) == 0 {
+			continue // no arcs for this node.
+		}
+
+		var sum float64
+		for m := 0; m < n; m++ {
+			sum += weights0[i][m]
+		}
+
+		for j := 0; j < n; j++ {
+			ok0, _ := g0.IsConnected(keys[i], keys[j])
+			ok1, _ := g1.IsConnected(keys[i], keys[j])
+			t.Logf("i=%d, j=%d, conn=%v", i, j, ok0)
+			if ok0 != ok1 {
+				t.Fatalf("connection mismatch from [%s] to [%s]", keys[i], keys[j])
+			}
+
+			if ok0 {
+				w0n := math.Log(weights0[i][j] / sum)
+				t.Logf("weights [%f] vs. [%f]", w0n, weights1[i][j])
+				if w0n != weights1[i][j] {
+					t.Fatalf("weights don't match [%f] vs. [%f]", w0n, weights1[i][j])
+				}
+			} else {
+				if weights0[i][j] != 0 {
+					t.Fatalf("expected zero weight, got [%f]", weights0[i][j])
+				}
+				if weights1[i][j] != math.Inf(-1) {
+					t.Fatalf("expected -Inf weight, got [%f]", weights1[i][j])
+				}
+
+			}
 		}
 	}
 }
