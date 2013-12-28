@@ -12,7 +12,7 @@ Features:
 * Arc weight normalization.
 
 Coming soon:
-* More graph manipulation methods (eg. merge graphs.)
+* More graph manipulation methods.
 * Viterbi search.
 
 For more info about graphs visit https://en.wikipedia.org/wiki/Graph_(abstract_data_type)

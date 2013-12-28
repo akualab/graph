@@ -274,6 +274,52 @@ func TestClone(t *testing.T) {
 	}
 }
 
+func TestMerge(t *testing.T) {
+	g := sampleGraph(t)
+
+	g1 := New()
+	g1.Set("6", 666)
+	g1.Set("7", "7xx")
+	g1.Set("8", "8xx")
+	g1.Set("5", 555)
+
+	// connect nodes/nodes
+	g1.Connect("8", "6", 6)
+	g1.Connect("5", "6", 10)
+	g1.Connect("5", "8", 2)
+	g1.Connect("6", "7", 18)
+
+	e := g.Merge(g1)
+	if e != nil {
+		t.Fatal(e)
+	}
+
+	// Check values after merge.
+	from := []string{"1", "1", "2", "4", "5", "5", "6", "8"}
+	to := []string{"2", "3", "3", "2", "6", "8", "7", "6"}
+	weights := []float64{5, 1, 9, 3, 10, 2, 18, 6}
+	for i := 0; i < 8; i++ {
+		exist, w := g.IsConnected(from[i], to[i])
+		if !exist {
+			t.Fatalf("missing connection from [%s] to [%s]", from[i], to[i])
+		}
+		if weights[i] != w {
+			t.Fatalf("weight mismatch, expected [%f], got [%f] in arc from [%s] to [%s]", weights[i], w, from[i], to[i])
+		}
+	}
+
+	t.Logf("Merge: %+v", g)
+
+	// Attempt to merge graph with duplicate key.
+	g2 := New()
+	g2.Set("2", 222)
+	g2.Set("22", 222)
+	g2.Connect("2", "22", 10)
+	if e := g.Merge(g2); e != DuplicateKeyError {
+		t.Fatalf("expected DuplicateKeyError, got [%v]", e)
+	}
+}
+
 func TestGob(t *testing.T) {
 	g := sampleGraph(t)
 
@@ -330,6 +376,33 @@ func TestYAML(t *testing.T) {
 	}
 }
 
+func TestYAMLLogProbs(t *testing.T) {
+
+	// Get sample graph with log probabilities.
+	g0 := sampleGraph(t)
+	g0.ConvertToLogProbs()
+	g0.Normalize(true)
+
+	// encode graph
+	b, eb := goyaml.Marshal(g0)
+	if eb != nil {
+		t.Fatal(eb)
+	}
+
+	// decode
+	g1 := New()
+	err := goyaml.Unmarshal(b, g1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if e := compareGraphs(g0, g1); e != nil {
+		t.Fatal(e)
+	}
+
+	t.Logf("after yaml log:\n%+v", g1)
+}
+
 func TestJSON(t *testing.T) {
 
 	// Get the sample graph.
@@ -351,6 +424,33 @@ func TestJSON(t *testing.T) {
 	if e := compareGraphs(g0, g1); e != nil {
 		t.Fatal(e)
 	}
+}
+
+func TestJSONLogProbs(t *testing.T) {
+
+	// Get sample graph with log probabilities.
+	g0 := sampleGraph(t)
+	g0.ConvertToLogProbs()
+	g0.Normalize(true)
+
+	// encode graph
+	b, eb := json.Marshal(g0)
+	if eb != nil {
+		t.Fatal(eb)
+	}
+
+	// decode
+	g1 := New()
+	err := json.Unmarshal(b, g1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if e := compareGraphs(g0, g1); e != nil {
+		t.Fatal(e)
+	}
+
+	t.Logf("after json log:\n%+v", g1)
 }
 
 func ExampleGraph() {
@@ -439,8 +539,8 @@ func includeGraphs(g1, g2 *Graph) (e error) {
 			if !ok {
 				return fmt.Errorf("arc mismatch. from [%s] to [%s]", k1, k2)
 			}
-			if w1 != w2 {
-				return fmt.Errorf("weight mismatch. from [%s] to [%s], got weight [%f] vs weight [%f]", w1, w2)
+			if !Comparef64(w1, w2, 0.0001) {
+				return fmt.Errorf("weight mismatch. from [%s] to [%s], got weight [%f] vs weight [%f]", k1, k2, w1, w2)
 			}
 		}
 	}
@@ -510,6 +610,17 @@ func printNodes(vSlice map[string]*Node) {
 			fmt.Printf("  → %v\n", otherV.value)
 		}
 	}
+}
+
+func Comparef64(f1, f2, epsilon float64) bool {
+	err := f2 - f1
+	if err < 0 {
+		err = -err
+	}
+	if err < epsilon {
+		return true
+	}
+	return false
 }
 
 const graphData string = `

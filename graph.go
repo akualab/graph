@@ -26,6 +26,10 @@ type Node struct {
 	succesors map[*Node]float64 // maps the succesor node to the weight of the connection to it
 }
 
+var (
+	DuplicateKeyError = errors.New("cannot merge node because key already exists")
+)
+
 // Returns the map of succesors.
 func (node *Node) GetSuccesors() map[*Node]float64 {
 	if node == nil {
@@ -352,6 +356,44 @@ func (g *Graph) TransitionMatrix(isLog bool) (keys []string, weights [][]float64
 		}
 	}
 	return
+}
+
+// Merges copies of the graphs passed as a parameter.
+// Nodes and arcs are copied to the new structure without modifying
+// any connection. Returns DuplicateKeyError if any of the keys already exist.
+func (g *Graph) Merge(graphs ...*Graph) error {
+
+	// Verify that there are no duplicates before starting to merge.
+	tmpMap := make(map[string]bool)
+	for k, _ := range g.nodes {
+		tmpMap[k] = true
+	}
+	for _, gg := range graphs {
+		for k, _ := range gg.nodes {
+			// Bail out if key already exists.
+			_, found := tmpMap[k]
+			if found {
+				return DuplicateKeyError
+			}
+			tmpMap[k] = true
+		}
+	}
+
+	// We are good, start merging.
+	for _, gg := range graphs {
+
+		// Copy graph.
+		graph, e := gg.Clone()
+		if e != nil {
+			return e
+		}
+		for key, node := range graph.nodes {
+
+			// Copy node to receiver.
+			g.nodes[key] = node
+		}
+	}
+	return nil
 }
 
 // Returns the graph as a string in YAML format.
