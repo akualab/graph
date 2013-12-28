@@ -212,9 +212,9 @@ func TestLogTransitionMatrix(t *testing.T) {
 func TestLogProbs(t *testing.T) {
 
 	g0 := sampleGraph(t)
-
-	g1, _ := g0.Clone()
-	g1.NormalizeWeights(true)
+	g1 := sampleGraph(t)
+	g1.ConvertToLogProbs()
+	g1.Normalize(true)
 
 	keys, weights0 := g0.TransitionMatrix(false)
 	_, weights1 := g1.TransitionMatrix(true)

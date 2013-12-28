@@ -6,8 +6,6 @@ import (
 
 // Returns the shortest path from the vertex with key startKey to the vertex with key endKey as a string slice, and if such a path exists at all, using a function to calculate an estimated distance from a vertex to the endNode. The heuristic function is passed the keys of a vertex and the end vertex. This function uses the A* search algorithm.
 func (g *Graph) ShortestPathWithHeuristic(startKey, endKey string, heuristic func(key, endKey string) float64) (path []string, exists bool) {
-	g.RLock()
-	defer g.RUnlock()
 
 	// start and end vertex
 	start := g.get(startKey)

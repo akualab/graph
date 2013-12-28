@@ -18,9 +18,11 @@ import (
 
 // Struct to export/import a graph.
 type GraphIO struct {
-	inv   map[*Node]string
-	Nodes map[string]interface{}        `json:"nodes"`
-	Arcs  map[string]map[string]float64 `json:"arcs"`
+	inv map[*Node]string
+	// Node values indexed by key.
+	Nodes map[string]interface{} `json:"nodes"`
+	// Arc weight indexed by start node and end node keys.
+	Arcs map[string]map[string]float64 `json:"arcs"`
 }
 
 // adds a key - node pair to the GraphIO
