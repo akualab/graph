@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 
 	"launchpad.net/goyaml"
 )
@@ -203,4 +204,32 @@ func (gio *GraphIO) initGraph(g *Graph) (e error) {
 	}
 
 	return
+}
+
+// Reads graph in JSON format.
+func ReadJSONGraph(fn string) (*Graph, error) {
+
+	dat, e := ioutil.ReadFile(fn)
+	if e != nil {
+		return nil, e
+	}
+
+	g := New()
+	e = json.Unmarshal(dat, g)
+	if e != nil {
+		return nil, e
+	}
+
+	return g, nil
+}
+
+// Write graph in JSON format.
+func (g *Graph) WriteJSONGraph(fn string) error {
+
+	b, e := g.MarshalJSON()
+	if e != nil {
+		return e
+	}
+
+	return ioutil.WriteFile(fn, b, 0644)
 }

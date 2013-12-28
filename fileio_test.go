@@ -33,7 +33,7 @@ func TestYAML2(t *testing.T) {
 	// Read YAML file.
 	dat, ee := ioutil.ReadFile(fn)
 	if ee != nil {
-		t.Fatal(err)
+		t.Fatal(ee)
 	}
 
 	g1 := New()
@@ -79,7 +79,7 @@ func TestJSON2(t *testing.T) {
 	// Read JSON file back and compare.
 	dat, ee := ioutil.ReadFile(fn)
 	if ee != nil {
-		t.Fatal(err)
+		t.Fatal(ee)
 	}
 
 	g2 := New()

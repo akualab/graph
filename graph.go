@@ -74,7 +74,8 @@ func (g *Graph) Len() int {
 
 // If there is no node with the specified key yet, Set creates a new node and stores the value.
 // Else, Set updates the value, but leaves all connections intact.
-func (g *Graph) Set(key string, value interface{}) {
+// Returns the node.
+func (g *Graph) Set(key string, value interface{}) *Node {
 
 	v := g.get(key)
 
@@ -89,10 +90,11 @@ func (g *Graph) Set(key string, value interface{}) {
 
 		// and add it to the graph
 		g.nodes[key] = v
-		return
+		return v
 	}
 
 	v.value = value
+	return v
 }
 
 // Deletes the node with the specified key. Returns false if key is invalid.
