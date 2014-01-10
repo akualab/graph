@@ -622,20 +622,3 @@ func Comparef64(f1, f2, epsilon float64) bool {
 	}
 	return false
 }
-
-const graphData string = `
-nodes:
-  "1": 123
-  "2": 678
-  "3": abc
-  "4": xyz
-arcs:
-  "1":
-    "2": 5
-    "3": 1
-  "2":
-    "3": 9
-  "3": {}
-  "4":
-    "2": 3
-`
