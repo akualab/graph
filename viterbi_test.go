@@ -20,7 +20,11 @@ func (v vvalue) ScoreFunction(n int, node *Node) float64 {
 
 func threeStateGraph(t *testing.T) *Graph {
 
-	obs := [][]float64{{0.1, 0.1, 0.2, 0.4}, {0.4, 0.1, 0.3, 0.5}, {0.2, 0.2, 0.4, 0.5}}
+	obs := [][]float64{
+		{0.1, 0.1, 0.2, 0.4, 0.11, 0.11, 0.12, 0.14},
+		{0.4, 0.1, 0.3, 0.5, 0.21, 0.01, 0.12, 0.08},
+		{0.2, 0.2, 0.4, 0.5, 0.09, 0.11, 0.32, 0.444},
+	}
 	for i, v := range obs {
 		for j, _ := range v {
 			obs[i][j] = math.Log(obs[i][j])
@@ -54,10 +58,10 @@ func threeStateGraph(t *testing.T) *Graph {
 	g.Connect("s1", "s1", 0.4)
 	g.Connect("s1", "s2", 0.5)
 	g.Connect("s1", "s3", 0.1)
-	g.Connect("s2", "s2", 0.3)
-	g.Connect("s2", "s3", 0.7)
-	g.Connect("s3", "s3", 0.4)
-	g.Connect("s3", "s4", 0.6)
+	g.Connect("s2", "s2", 0.5)
+	g.Connect("s2", "s3", 0.5)
+	g.Connect("s3", "s3", 0.6)
+	g.Connect("s3", "s4", 0.4)
 
 	g.ConvertToLogProbs()
 	return g
@@ -82,7 +86,9 @@ func TestViterbi(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	dec.Decode(4)
+	token := dec.Decode(8)
+
+	t.Logf("\n\n>>>> FINAL: %s\n", token)
 
 }
 

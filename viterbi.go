@@ -66,17 +66,22 @@ func NewDecoder(g *Graph, start, end *Node) (d *Decoder, e error) {
 // Decodes a sequence of N observations.
 // Returns the Viterbi path and total score.
 // The node values must be of type Tokener.
-func (d *Decoder) Decode(N int) (token *Token) {
+func (d *Decoder) Decode(N int) *Token {
 
 	for i := 0; i < N; i++ {
 		d.Propagate(i)
 	}
 
-	// Get the results from the terminal node.
-	//bt = d.end.value.(*Token).Backtrace
-	//score = d.end.value.(*Token).Score
+	var best *Token = nil
+	max := -math.MaxFloat64
+	for _, t := range d.active {
+		if t.Score > max {
+			max = t.Score
+			best = t
+		}
+	}
 
-	return
+	return best
 }
 
 // Propagates tokens from nodes to succesors.
@@ -90,7 +95,8 @@ func (d *Decoder) Propagate(n int) {
 
 	for _, t := range d.active {
 		for node, w := range t.Node.succesors {
-			fmt.Printf("TOKEN: %s, SUCC: %s\n", t, node.key)
+			fmt.Printf("NODE:  %s\n", node.key)
+			fmt.Printf("  TOKEN: %s\n", t)
 			_, found := data[node]
 			if !found {
 				data[node] = make([]*Token, 0)
@@ -130,6 +136,7 @@ func (d *Decoder) Propagate(n int) {
 	// Replace list of active hypothesis.
 	d.active = active
 
+	fmt.Printf("ACTIVE LIST: \n")
 	printActive(active)
 	return
 }
@@ -153,28 +160,34 @@ func printActive(active []*Token) {
 }
 
 // Returns a slice fo tokens in tslice.
-func (t *Token) Backtrace(tslice []*Token) {
+func (t *Token) Backtrace(tslice []*Token) []*Token {
 
 	if t.BT == nil {
-		return
+		return tslice
 	}
-	tslice = append(tslice, t.BT)
-	t.BT.Backtrace(tslice)
+	//tslice = append(tslice, t.BT)
+	tslice = append(tslice, t)
+	tslice = t.BT.Backtrace(tslice)
+	return tslice
 }
 
 // Returns the backtrace as a string with the sequence of node keys.
 func (t *Token) BacktraceString() string {
 
 	bt := make([]*Token, 0)
-	t.Backtrace(bt)
+	bt = t.Backtrace(bt)
+
 	buf := new(bytes.Buffer)
-	for _, v := range bt {
-		buf.WriteString(v.Node.key + " ")
+	buf.WriteString("| ")
+	for i, _ := range bt {
+		v := bt[len(bt)-i-1]
+		st := fmt.Sprintf("%d:%s:%.2f | ", v.Index, v.Node.key, v.Score)
+		buf.WriteString(st)
 	}
 	return buf.String()
 }
 
 // Returns a astring with token and backtrace information.
 func (t *Token) String() string {
-	return fmt.Sprintf("n: %4d, node: %10s, sc: %6.2f, bt: %s ", t.Index, t.Node.key, t.Score, t.BacktraceString())
+	return fmt.Sprintf("n: %2d, node: %4s, sc: %4.2f, bt: %s ", t.Index, t.Node.key, t.Score, t.BacktraceString())
 }
