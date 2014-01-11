@@ -18,7 +18,7 @@ func (v vvalue) ScoreFunction(n int, node *Node) float64 {
 	return v.f(n, node)
 }
 
-func threeStateGraph(t *testing.T) *Graph {
+func simpleGraph(t *testing.T) *Graph {
 
 	obs := [][]float64{
 		{0.1, 0.1, 0.2, 0.4, 0.11, 0.11, 0.12, 0.14},
@@ -40,6 +40,9 @@ func threeStateGraph(t *testing.T) *Graph {
 	var s3Func = func(n int, node *Node) float64 {
 		return obs[2][n]
 	}
+	var s5Func = func(n int, node *Node) float64 {
+		return obs[2][n]
+	}
 	var finalFunc = func(n int, node *Node) float64 {
 		return 0
 	}
@@ -51,6 +54,7 @@ func threeStateGraph(t *testing.T) *Graph {
 	g.Set("s1", vvalue{s1Func})
 	g.Set("s2", vvalue{s2Func})
 	g.Set("s3", vvalue{s3Func})
+	g.Set("s5", vvalue{s5Func})
 	g.Set("s4", vvalue{finalFunc}) // final state
 
 	// make some connections
@@ -59,7 +63,10 @@ func threeStateGraph(t *testing.T) *Graph {
 	g.Connect("s1", "s2", 0.5)
 	g.Connect("s1", "s3", 0.1)
 	g.Connect("s2", "s2", 0.5)
-	g.Connect("s2", "s3", 0.5)
+	g.Connect("s2", "s3", 0.4)
+	g.Connect("s2", "s5", 0.1)
+	g.Connect("s5", "s5", 0.7)
+	g.Connect("s5", "s1", 0.3)
 	g.Connect("s3", "s3", 0.6)
 	g.Connect("s3", "s4", 0.4)
 
@@ -72,7 +79,7 @@ func TestViterbi(t *testing.T) {
 	var start, end *Node
 	var e error
 
-	g := threeStateGraph(t)
+	g := simpleGraph(t)
 	t.Logf("three state graph:\n%s\n", g)
 
 	if start, e = g.Get("s0"); e != nil {
@@ -91,14 +98,3 @@ func TestViterbi(t *testing.T) {
 	t.Logf("\n\n>>>> FINAL: %s\n", token)
 
 }
-
-// type Token struct {
-// 	// Computes score for a given node at observation sequence index n.
-// 	ScoreFunc ScoreFunc `yaml:"-" json:"-"`
-// 	// Accumulated score for this hypothesis.
-// 	Score float64
-// 	// The optimal node sequence.
-// 	Backtrace []*Node
-// 	// A stored value.
-// 	Value interface{}
-// }
