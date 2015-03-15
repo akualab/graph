@@ -16,7 +16,7 @@ type vvalue struct {
 }
 
 // Implements the Viterbier interface.
-func (v vvalue) ScoreFunction(n int, node *Node) float64 {
+func (v vvalue) ScoreFunc(n int, node *Node) float64 {
 	return v.f(n, node)
 }
 

@@ -16,31 +16,36 @@ import (
 	"sort"
 )
 
+// The Graph object.
 type Graph struct {
-	nodes map[string]*Node // A map of all the nodes in this graph, indexed by their key.
+	// A map of all the nodes in this graph, indexed by their key.
+	nodes map[string]*Node
 }
 
+// The Node object.
 type Node struct {
-	key       string
-	value     interface{}       // the stored value
-	succesors map[*Node]float64 // maps the succesor node to the weight of the connection to it
+	key   string
+	value interface{}
+	// Maps the successor node to the weight of the connection to it.
+	successors map[*Node]float64
 }
 
 var (
-	DuplicateKeyError = errors.New("cannot merge node because key already exists")
+	// ErrDuplicateKey is an error to indicare a naming conflict.
+	ErrDuplicateKey = errors.New("cannot merge node because key already exists")
 )
 
-// Returns the map of succesors.
-func (node *Node) GetSuccesors() map[*Node]float64 {
+// GetSuccessors returns the map of successors.
+func (node *Node) GetSuccessors() map[*Node]float64 {
 	if node == nil {
 		return nil
 	}
 
-	succesors := node.succesors
-	return succesors
+	successors := node.successors
+	return successors
 }
 
-// Returns the node's key.
+// Key returns the node's key.
 func (node *Node) Key() string {
 	if node == nil {
 		return ""
@@ -50,7 +55,7 @@ func (node *Node) Key() string {
 	return key
 }
 
-// Returns the node's value.
+// Value returns the node's value.
 func (node *Node) Value() interface{} {
 	if node == nil {
 		return nil
@@ -60,21 +65,22 @@ func (node *Node) Value() interface{} {
 	return value
 }
 
-// Initializes a new graph.
+// New creates a graph.
 func New() *Graph {
 	return &Graph{
 		nodes: map[string]*Node{},
 	}
 }
 
-// Returns the number of nodes contained in the graph.
+// Len returns the number of nodes contained in the graph.
 func (g *Graph) Len() int {
 	return len(g.nodes)
 }
 
-// If there is no node with the specified key yet, Set creates a new node and stores the value.
-// Else, Set updates the value, but leaves all connections intact.
-// Returns the node.
+// Set returns a new or updated node.
+// If key doesn't exist, Set creates a new node with value.
+// If node with key exists, Set updates the value, all connections
+// are unchanged.
 func (g *Graph) Set(key string, value interface{}) *Node {
 
 	v := g.get(key)
@@ -83,9 +89,9 @@ func (g *Graph) Set(key string, value interface{}) *Node {
 	if v == nil {
 		// create a new one
 		v = &Node{
-			key:       key,
-			value:     value,
-			succesors: map[*Node]float64{},
+			key:        key,
+			value:      value,
+			successors: map[*Node]float64{},
 		}
 
 		// and add it to the graph
@@ -97,7 +103,7 @@ func (g *Graph) Set(key string, value interface{}) *Node {
 	return v
 }
 
-// Deletes the node with the specified key. Returns false if key is invalid.
+// Delete node by key. Returns false if key is invalid.
 func (g *Graph) Delete(key string) bool {
 
 	// get node in question
@@ -111,23 +117,22 @@ func (g *Graph) Delete(key string) bool {
 
 	// remove arcs from other nodes to the node we are removing.
 	for _, otherNode := range g.nodes {
-		for succesor, _ := range otherNode.succesors {
-			delete(succesor.succesors, v)
+		for successor, _ := range otherNode.successors {
+			delete(successor.successors, v)
 		}
 	}
 	return true
 }
 
-// Returns a slice containing all nodes. The slice is empty if the graph contains no nodes.
+// GetAll returns a slice containing all nodes.
 func (g *Graph) GetAll() (all []*Node) {
 	for _, v := range g.nodes {
 		all = append(all, v)
 	}
-
 	return
 }
 
-// Returns the node with this key, or nil and an error if there is no node with this key.
+// Get node by key, returns an error if there is no node for key.
 func (g *Graph) Get(key string) (v *Node, err error) {
 	v = g.get(key)
 
@@ -138,13 +143,14 @@ func (g *Graph) Get(key string) (v *Node, err error) {
 	return
 }
 
-// Internal function
+// Internal function.
 func (g *Graph) get(key string) *Node {
 	return g.nodes[key]
 }
 
-// Creates an arc between the nodes specified by the keys. Returns false if one or both of the keys are invalid.
-// If there already is a connection, it is overwritten with the new arc weight.
+// Connect creates an arc between the nodes specified by the keys "from" and "to.
+// Returns false if one or both keys are invalid.
+// If a connection exists, it is overwritten with the new arc weight.
 func (g *Graph) Connect(from string, to string, weight float64) bool {
 
 	// get nodes and check for validity of keys
@@ -155,27 +161,29 @@ func (g *Graph) Connect(from string, to string, weight float64) bool {
 		return false
 	}
 
-	v.succesors[otherV] = weight
+	v.successors[otherV] = weight
 
 	// success
 	return true
 }
 
-// Creates an arc to a target node. Returns false if the target node is nil.
-// If there already is a connection, it is overwritten with the new weight.
+// Connect creates an arc between the node and a target node "toNode".
+// Returns false if the target node is nil.
+// If a connection exists, it is overwritten with the new arc weight.
 func (node *Node) Connect(toNode *Node, weight float64) bool {
 
 	if toNode == nil {
 		return false
 	}
 
-	node.succesors[toNode] = weight
+	node.successors[toNode] = weight
 
 	// success
 	return true
 }
 
-// Removes an arc connecting the two nodes. Returns false if one or both of the keys are invalid.
+// Disconnect removes an arc connecting the two nodes.
+// Returns false if one or both of the keys are invalid.
 func (g *Graph) Disconnect(from string, to string) bool {
 
 	// get nodes and check for validity of keys
@@ -187,25 +195,26 @@ func (g *Graph) Disconnect(from string, to string) bool {
 	}
 
 	// delete the arc
-	delete(v.succesors, otherV)
+	delete(v.successors, otherV)
 
 	return true
 }
 
-// Removes arc connecting to target node. Returns false if target node is nil.
+// Disconnect removes the arc fron node to "toNode".
+// Returns false if target node is nil.
 func (node *Node) Disconnect(toNode *Node) bool {
 
 	if toNode == nil {
 		return false
 	}
 
-	delete(node.succesors, toNode)
+	delete(node.successors, toNode)
 
 	// success
 	return true
 }
 
-// Returns true and the arc weight if there is an arc between the nodes specified by their keys.
+// IsConnected returns true and the arc weight if arc exists.
 // Returns false if one or both keys are invalid or if there is no arc between the nodes.
 func (g *Graph) IsConnected(from string, to string) (exists bool, weight float64) {
 
@@ -220,30 +229,29 @@ func (g *Graph) IsConnected(from string, to string) (exists bool, weight float64
 	}
 
 	// iterate over it's map of arcs; when the right node is found, return
-	for succV, weight := range fromV.succesors {
+	for succV, weight := range fromV.successors {
 		if succV == toV {
 			return true, weight
 		}
 	}
-
 	return
 }
 
-// Returns true and the arc weight if there is an arc to the target node.
+// IsConnected returns true and the arc weight if arc exists.
 // Returns false if there is no arc.
 func (node *Node) IsConnected(toNode *Node) (exists bool, weight float64) {
 
 	// iterate over it's map of arcs; when the right node is found, return
-	for succV, weight := range node.succesors {
+	for succV, weight := range node.successors {
 		if succV == toNode {
 			return true, weight
 		}
 	}
-
 	return
 }
 
-// Returns an identical copy of the graph.
+// Clone returns a deep copy of the graph.
+// The entire graph is serialized using the gob package.
 func (g *Graph) Clone() (newG *Graph, e error) {
 
 	// encode
@@ -263,24 +271,23 @@ func (g *Graph) Clone() (newG *Graph, e error) {
 	return
 }
 
-// Converts arc weights to probabilities.
+// Normalize converts outbound arc weights to probabilities.
 func (node *Node) Normalize(isLog bool) {
-
 	var sum float64
 	if !isLog {
-		for _, w := range node.succesors {
+		for _, w := range node.successors {
 			sum += w
 		}
-		for snode, w := range node.succesors {
-			node.succesors[snode] = w / sum
+		for snode, w := range node.successors {
+			node.successors[snode] = w / sum
 		}
 		return
 	}
 
 	// IsLog == true
 	// convert to linear.
-	for snode, w := range node.succesors {
-		node.succesors[snode] = math.Exp(w)
+	for snode, w := range node.successors {
+		node.successors[snode] = math.Exp(w)
 	}
 	// Normalize to probs. in linear domain.
 	node.Normalize(false)
@@ -289,32 +296,30 @@ func (node *Node) Normalize(isLog bool) {
 	node.ConvertToLogProbs()
 }
 
-// For all nodes in graph, converts arc weights to probabilities.
+// Normalize converts arc weights to probabilities such that the sum of
+// the weights of the outbound arcs for a given node equals one.
 func (g *Graph) Normalize(isLog bool) {
-
 	for _, node := range g.nodes {
 		node.Normalize(isLog)
 	}
 }
 
-// Converts arc weights in linear domain to log weights.
+// ConvertToLogProbs converts arc weights to log probabilities.
 func (node *Node) ConvertToLogProbs() {
-
-	for snode, w := range node.succesors {
-		node.succesors[snode] = math.Log(w)
+	for snode, w := range node.successors {
+		node.successors[snode] = math.Log(w)
 	}
 }
 
-// For all nodes in graph, converts arc weights in linear domain to log weights.
+// ConvertToLogProbs converts arc weights to log probabilities.
 func (g *Graph) ConvertToLogProbs() {
-
 	for _, node := range g.nodes {
 		node.ConvertToLogProbs()
 	}
 }
 
-// Returns a slice of keys sorted alphabetically and the corresponding
-// transition matrix of type [][]float64. Rows with no arcs
+// TransitionMatrix returns a slice of keys sorted alphabetically and the corresponding
+// transition matrix of type [][]float64. Rows with no outbound arcs
 // have a nil slice. If isLog is true, missing connections are set to -Inf,
 // zero otherwise.
 func (g *Graph) TransitionMatrix(isLog bool) (keys []string, weights [][]float64) {
@@ -344,7 +349,7 @@ func (g *Graph) TransitionMatrix(isLog bool) (keys []string, weights [][]float64
 	for _, fromNode := range nodes {
 		i := index[fromNode]
 		keys[i] = fromNode.key
-		for toNode, w := range fromNode.succesors {
+		for toNode, w := range fromNode.successors {
 			j := index[toNode]
 			if len(weights[i]) == 0 {
 				weights[i] = make([]float64, n)
@@ -360,9 +365,9 @@ func (g *Graph) TransitionMatrix(isLog bool) (keys []string, weights [][]float64
 	return
 }
 
-// Merges copies of the graphs passed as a parameter.
-// Nodes and arcs are copied to the new structure without modifying
-// any connection. Returns DuplicateKeyError if any of the keys already exist.
+// Merge combines graphs as follows:
+// Nodes and arcs are copied to the new structure without modifications.
+// Returns ErrDuplicateKey if any of the keys is duplicated.
 func (g *Graph) Merge(graphs ...*Graph) error {
 
 	// Verify that there are no duplicates before starting to merge.
@@ -375,7 +380,7 @@ func (g *Graph) Merge(graphs ...*Graph) error {
 			// Bail out if key already exists.
 			_, found := tmpMap[k]
 			if found {
-				return DuplicateKeyError
+				return ErrDuplicateKey
 			}
 			tmpMap[k] = true
 		}
@@ -398,22 +403,30 @@ func (g *Graph) Merge(graphs ...*Graph) error {
 	return nil
 }
 
-// Returns the graph as a string in YAML format.
+// String returns the graph as a string in YAML format.
 func (g *Graph) String() (st string) {
 
 	buf := new(bytes.Buffer)
-	g.WriteYAML(buf)
+	err := g.WriteYAML(buf)
+	if err != nil {
+		panic(err)
+	}
 	return buf.String()
 }
 
 // Sort Nodes.
 
+// Nodes is a slice of nodes.
 type Nodes []*Node
 
-func (s Nodes) Len() int      { return len(s) }
+// Len is the number of nodes to sort.
+func (s Nodes) Len() int { return len(s) }
+
+// Swap for sorting nodes.
 func (s Nodes) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
-// ByName implements sort.Interface by providing Less and using the Len and
+// ByName implements the sort interface.
 type ByName struct{ Nodes }
 
+// Less implements the sort interface.
 func (s ByName) Less(i, j int) bool { return s.Nodes[i].key < s.Nodes[j].key }

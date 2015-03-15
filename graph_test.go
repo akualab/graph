@@ -134,14 +134,14 @@ func TestDelete(t *testing.T) {
 	}
 
 	// test for orphaned connections
-	succ := g.get("2").GetSuccesors()
+	succ := g.get("2").GetSuccessors()
 	for n, _ := range succ {
 		if n == one {
 			t.Fail()
 		}
 	}
 
-	succ = g.get("3").GetSuccesors()
+	succ = g.get("3").GetSuccessors()
 	for n, _ := range succ {
 		if n == one {
 			t.Fail()
@@ -315,7 +315,7 @@ func TestMerge(t *testing.T) {
 	g2.Set("2", 222)
 	g2.Set("22", 222)
 	g2.Connect("2", "22", 10)
-	if e := g.Merge(g2); e != DuplicateKeyError {
+	if e := g.Merge(g2); e != ErrDuplicateKey {
 		t.Fatalf("expected DuplicateKeyError, got [%v]", e)
 	}
 }
@@ -531,7 +531,7 @@ func includeGraphs(g1, g2 *Graph) (e error) {
 
 	// check connections.
 	for k1, v1 := range g1.nodes {
-		for v2, w1 := range v1.succesors {
+		for v2, w1 := range v1.successors {
 			k2 := v2.key
 
 			// check if there is connection from k1 to k2 in the other graph.
@@ -606,7 +606,7 @@ func getSampleNodes(t *testing.T, g *Graph) (node1, node2, node3, node4 *Node) {
 func printNodes(vSlice map[string]*Node) {
 	for _, v := range vSlice {
 		fmt.Printf("%v\n", v.value)
-		for otherV, _ := range v.succesors {
+		for otherV, _ := range v.successors {
 			fmt.Printf("  → %v\n", otherV.value)
 		}
 	}

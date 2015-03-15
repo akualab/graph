@@ -9,15 +9,20 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+
+	"github.com/golang/glog"
 )
 
+// The Viterbier interface is used to implement a Viterbi decoder using a directed graph.
 type Viterbier interface {
-	// Computes score for a given node at observation sequence index n.
-	ScoreFunction(n int, node *Node) float64
+	// Scoring function.
+	ScoreFunc(n int, node *Node) float64
 }
 
+// ScoreFunc is the scoring function type.
 type ScoreFunc func(n int, node *Node) float64
 
+// Token is used to implement the token-passign algorithm.
 type Token struct {
 	// Accumulated score for this hypothesis.
 	Score float64
@@ -29,10 +34,10 @@ type Token struct {
 	Index int
 }
 
-// Finds the sequence of nodes in the graph that maximizes the score of
-// a sequence of N observations using the Viterbi algorithm.
-// (http://en.wikipedia.org/wiki/Viterbi_algorithm)
-// The node values must be of type Tokener.
+// Decoder finds the sequence of nodes in the graph that maximizes
+// the score of a sequence of N observations using the Viterbi algorithm.
+// (see http://en.wikipedia.org/wiki/Viterbi_algorithm)
+// The node values must be of type Token.
 type Decoder struct {
 	graph  *Graph
 	start  *Node
@@ -40,7 +45,7 @@ type Decoder struct {
 	active []*Token
 }
 
-// Creates a new Viterbi decoder.
+// NewDecoder creates a new Viterbi decoder.
 func NewDecoder(g *Graph, start, end *Node) (d *Decoder, e error) {
 
 	// Check that all values in graph are of type Token.
@@ -63,8 +68,7 @@ func NewDecoder(g *Graph, start, end *Node) (d *Decoder, e error) {
 	return
 }
 
-// Decodes a sequence of N observations.
-// Returns the Viterbi path and total score.
+// Decode returns the Viterbi path and total score.
 // The node values must be of type Tokener.
 func (d *Decoder) Decode(N int) *Token {
 
@@ -72,7 +76,7 @@ func (d *Decoder) Decode(N int) *Token {
 		d.Propagate(i)
 	}
 
-	var best *Token = nil
+	var best *Token
 	max := -math.MaxFloat64
 	for _, t := range d.active {
 		if t.Score > max {
@@ -80,29 +84,27 @@ func (d *Decoder) Decode(N int) *Token {
 			best = t
 		}
 	}
-
 	return best
 }
 
-// Propagates tokens from nodes to succesors.
+// Propagate tokens from nodes to successors.
 // Keeps the tokens that maximizes the score.
 func (d *Decoder) Propagate(n int) {
 
-	fmt.Printf("\nPROPAGATE: %d\n\n", n)
+	glog.V(3).Infof("propagate: %d", n)
 
 	// Data structure to hold candidate hypothesis before choosing the most likely.
 	data := make(map[*Node][]*Token)
 
 	for _, t := range d.active {
-		for node, w := range t.Node.succesors {
-			fmt.Printf("NODE:  %s\n", node.key)
-			fmt.Printf("  TOKEN: %s\n", t)
+		for node, w := range t.Node.successors {
+			glog.V(3).Infof("node:  %s, token: %s", node.key, t)
 			_, found := data[node]
 			if !found {
-				data[node] = make([]*Token, 0)
+				data[node] = []*Token{}
 			}
 			// Copy and update Token.
-			f := node.value.(Viterbier).ScoreFunction // scoring function for this node.
+			f := node.value.(Viterbier).ScoreFunc // scoring function for this node.
 			nt := &Token{
 				Score: t.Score + w + f(n, node),
 				Node:  node,
@@ -115,14 +117,13 @@ func (d *Decoder) Propagate(n int) {
 
 	// We have all the candidates for all nodes. Keep the most likely.
 	// Remove others.
-	active := make([]*Token, 0)
+	var active []*Token
 	for _, node := range d.graph.nodes {
 
 		candidates := data[node]
-		var best *Token = nil
+		var best *Token
 		max := -math.MaxFloat64
 		for _, t := range candidates {
-			//fmt.Printf("NODE: %s, TOKEN: %s\n", key, t.BacktraceString())
 			if t.Score > max {
 				max = t.Score
 				best = t
@@ -136,8 +137,10 @@ func (d *Decoder) Propagate(n int) {
 	// Replace list of active hypothesis.
 	d.active = active
 
-	fmt.Printf("ACTIVE LIST: \n")
-	printActive(active)
+	if glog.V(3) {
+		glog.Info("active list:")
+		printActive(active)
+	}
 	return
 }
 
@@ -159,35 +162,43 @@ func printActive(active []*Token) {
 	}
 }
 
-// Returns a slice fo tokens in tslice.
-func (t *Token) Backtrace(tslice []*Token) []*Token {
+// Backtrace returns a slice of tokens.
+func (t *Token) Backtrace(tokens []*Token) []*Token {
 
 	if t.BT == nil {
-		return tslice
+		return tokens
 	}
-	//tslice = append(tslice, t.BT)
-	tslice = append(tslice, t)
-	tslice = t.BT.Backtrace(tslice)
-	return tslice
+	//tokens = append(tokens, t.BT)
+	tokens = append(tokens, t)
+	tokens = t.BT.Backtrace(tokens)
+	return tokens
 }
 
-// Returns the backtrace as a string with the sequence of node keys.
+// BacktraceString returns the backtrace as a string
+// with the sequence of node keys.
 func (t *Token) BacktraceString() string {
 
-	bt := make([]*Token, 0)
+	var bt []*Token
 	bt = t.Backtrace(bt)
 
 	buf := new(bytes.Buffer)
-	buf.WriteString("| ")
+	_, err := buf.WriteString("| ")
+	if err != nil {
+		panic(err)
+	}
 	for i, _ := range bt {
 		v := bt[len(bt)-i-1]
 		st := fmt.Sprintf("%d:%s:%.2f | ", v.Index, v.Node.key, v.Score)
-		buf.WriteString(st)
+		_, err := buf.WriteString(st)
+		if err != nil {
+			panic(err)
+		}
+
 	}
 	return buf.String()
 }
 
-// Returns a astring with token and backtrace information.
+// String returns a string with token and backtrace information.
 func (t *Token) String() string {
 	return fmt.Sprintf("n: %2d, node: %4s, sc: %4.2f, bt: %s ", t.Index, t.Node.key, t.Score, t.BacktraceString())
 }

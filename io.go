@@ -33,10 +33,10 @@ func (g GraphIO) add(v *Node) {
 
 	g.Arcs[v.key] = map[string]float64{}
 
-	// for each succesor...
-	for succesor, weight := range v.succesors {
-		// save the arc connection to the succesor into the arcs map
-		g.Arcs[v.key][succesor.key] = weight
+	// for each successor...
+	for successor, weight := range v.successors {
+		// save the arc connection to the successor into the arcs map
+		g.Arcs[v.key][successor.key] = weight
 	}
 }
 
@@ -105,8 +105,8 @@ func (g *Graph) GobDecode(b []byte) (err error) {
 	}
 
 	// connect the nodes
-	for key, succesors := range gGob.Arcs {
-		for otherKey, weight := range succesors {
+	for key, successors := range gGob.Arcs {
+		for otherKey, weight := range successors {
 			if ok := g.Connect(key, otherKey, weight); !ok {
 				return errors.New("invalid arc endpoints")
 			}
@@ -195,8 +195,8 @@ func (gio *GraphIO) initGraph(g *Graph) (e error) {
 	}
 
 	// connect the nodes
-	for key, succesors := range gio.Arcs {
-		for otherKey, weight := range succesors {
+	for key, successors := range gio.Arcs {
+		for otherKey, weight := range successors {
 			if ok := g.Connect(key, otherKey, weight); !ok {
 				return errors.New("invalid arc endpoints")
 			}
