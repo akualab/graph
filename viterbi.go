@@ -14,7 +14,21 @@ import (
 )
 
 // The Viterbier interface is used to implement a Viterbi decoder using a directed graph.
-// The node values must implement the Viterbier interface.
+// All that is needed to search the graph is to implement this interface in every node.
+//
+// For example, define a type "nodeValue" for the node values as follows:
+//
+//   type nodeValue struct {
+//      // Plug your scoring function here.
+//      f ScoreFunc
+//   }
+//
+// and the method ScoreFunc which implements the Viterbier interface:
+//
+//   func (v nodeValue) ScoreFunc(n int) float64 {
+//      return v.f(n)
+//   }
+//
 type Viterbier interface {
 	// Scoring function.
 	ScoreFunc(n int) float64
@@ -23,7 +37,7 @@ type Viterbier interface {
 // ScoreFunc is the scoring function type.
 type ScoreFunc func(n int) float64
 
-// Token is used to implement the token-passign algorithm.
+// Token is used to implement the token-passing algorithm.
 type Token struct {
 	// Accumulated score for this hypothesis.
 	Score float64
@@ -55,7 +69,7 @@ func NewDecoder(g *Graph, start, end *Node) (d *Decoder, e error) {
 		return
 	}
 
-	d = &Decoder{graph: g, start: start, end: end, active: make([]*Token, 0)}
+	d = &Decoder{graph: g, start: start, end: end, active: []*Token{}}
 
 	// Initialization. First active hypothesis for start node.
 	t := &Token{
@@ -135,7 +149,7 @@ func (d *Decoder) Propagate(n int) {
 		}
 	}
 
-	// Replace list of active hypothesis.
+	// Replace list of active hypotheses.
 	d.active = active
 
 	if glog.V(3) {
@@ -201,5 +215,6 @@ func (t *Token) BacktraceString() string {
 
 // String returns a string with token and backtrace information.
 func (t *Token) String() string {
-	return fmt.Sprintf("n: %2d, node: %4s, sc: %4.2f, bt: %s ", t.Index, t.Node.key, t.Score, t.BacktraceString())
+	return fmt.Sprintf("n: %2d, node: %4s, sc: %4.2f, bt: %s ",
+		t.Index, t.Node.key, t.Score, t.BacktraceString())
 }
