@@ -16,8 +16,8 @@ type vvalue struct {
 }
 
 // Implements the Viterbier interface.
-func (v vvalue) ScoreFunc(n int, node *Node) float64 {
-	return v.f(n, node)
+func (v vvalue) ScoreFunc(n int) float64 {
+	return v.f(n)
 }
 
 // Create a simple graph.
@@ -37,19 +37,19 @@ func simpleGraph() *Graph {
 		}
 	}
 	// Define score functions to return state probabilities.
-	var s1Func = func(n int, node *Node) float64 {
+	var s1Func = func(n int) float64 {
 		return obs[0][n]
 	}
-	var s2Func = func(n int, node *Node) float64 {
+	var s2Func = func(n int) float64 {
 		return obs[1][n]
 	}
-	var s3Func = func(n int, node *Node) float64 {
+	var s3Func = func(n int) float64 {
 		return obs[2][n]
 	}
-	var s5Func = func(n int, node *Node) float64 {
+	var s5Func = func(n int) float64 {
 		return obs[2][n]
 	}
-	var finalFunc = func(n int, node *Node) float64 {
+	var finalFunc = func(n int) float64 {
 		return 0
 	}
 
@@ -91,10 +91,13 @@ func ExampleDecoder() {
 	// Create the graph.
 	g := simpleGraph()
 	e = fmt.Errorf("simple graph:\n%s\n", g)
-	panic(e)
+	if e != nil {
+		panic(e)
+	}
 
 	// Define the start and end nodes.
-	if start, e = g.Get("s0"); e != nil {
+	start, e = g.Get("s0")
+	if e != nil {
 		panic(e)
 	}
 	if end, e = g.Get("s4"); e != nil {

@@ -14,13 +14,14 @@ import (
 )
 
 // The Viterbier interface is used to implement a Viterbi decoder using a directed graph.
+// The node values must implement the Viterbier interface.
 type Viterbier interface {
 	// Scoring function.
-	ScoreFunc(n int, node *Node) float64
+	ScoreFunc(n int) float64
 }
 
 // ScoreFunc is the scoring function type.
-type ScoreFunc func(n int, node *Node) float64
+type ScoreFunc func(n int) float64
 
 // Token is used to implement the token-passign algorithm.
 type Token struct {
@@ -69,7 +70,7 @@ func NewDecoder(g *Graph, start, end *Node) (d *Decoder, e error) {
 }
 
 // Decode returns the Viterbi path and total score.
-// The node values must be of type Tokener.
+// The node values must be of type Viterbier.
 func (d *Decoder) Decode(N int) *Token {
 
 	for i := 0; i < N; i++ {
@@ -106,7 +107,7 @@ func (d *Decoder) Propagate(n int) {
 			// Copy and update Token.
 			f := node.value.(Viterbier).ScoreFunc // scoring function for this node.
 			nt := &Token{
-				Score: t.Score + w + f(n, node),
+				Score: t.Score + w + f(n),
 				Node:  node,
 				BT:    t,
 				Index: n,
