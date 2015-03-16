@@ -31,11 +31,11 @@ import (
 //
 type Viterbier interface {
 	// Scoring function.
-	ScoreFunc(n int) float64
+	Score(obs interface{}) (score float64)
 }
 
 // ScoreFunc is the scoring function type.
-type ScoreFunc func(n int) float64
+type ScoreFunc func(obs interface{}) float64
 
 // Token is used to implement the token-passing algorithm.
 type Token struct {
@@ -119,7 +119,7 @@ func (d *Decoder) Propagate(n int) {
 				data[node] = []*Token{}
 			}
 			// Copy and update Token.
-			f := node.value.(Viterbier).ScoreFunc // scoring function for this node.
+			f := node.value.(Viterbier).Score // scoring function for this node.
 			nt := &Token{
 				Score: t.Score + w + f(n),
 				Node:  node,

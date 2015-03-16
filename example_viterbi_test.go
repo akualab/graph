@@ -16,7 +16,7 @@ type vvalue struct {
 }
 
 // Implements the Viterbier interface.
-func (v vvalue) ScoreFunc(n int) float64 {
+func (v vvalue) Score(n int) float64 {
 	return v.f(n)
 }
 
@@ -37,19 +37,19 @@ func simpleGraph() *Graph {
 		}
 	}
 	// Define score functions to return state probabilities.
-	var s1Func = func(n int) float64 {
-		return obs[0][n]
+	var s1Func = func(n interface{}) float64 {
+		return obs[0][n.(int)]
 	}
-	var s2Func = func(n int) float64 {
-		return obs[1][n]
+	var s2Func = func(n interface{}) float64 {
+		return obs[1][n.(int)]
 	}
-	var s3Func = func(n int) float64 {
-		return obs[2][n]
+	var s3Func = func(n interface{}) float64 {
+		return obs[2][n.(int)]
 	}
-	var s5Func = func(n int) float64 {
-		return obs[2][n]
+	var s5Func = func(n interface{}) float64 {
+		return obs[2][n.(int)]
 	}
-	var finalFunc = func(n int) float64 {
+	var finalFunc = func(n interface{}) float64 {
 		return 0
 	}
 

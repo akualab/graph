@@ -366,7 +366,7 @@ func (g *Graph) TransitionMatrix(isLog bool) (keys []string, weights [][]float64
 }
 
 // Merge combines graphs as follows:
-// Nodes and arcs are copied to the new structure without modifications.
+// Nodes and arcs are [deep] copied to the new structure without modifications.
 // Returns ErrDuplicateKey if any of the keys is duplicated.
 func (g *Graph) Merge(graphs ...*Graph) error {
 
@@ -397,6 +397,41 @@ func (g *Graph) Merge(graphs ...*Graph) error {
 		for key, node := range graph.nodes {
 
 			// Copy node to receiver.
+			g.nodes[key] = node
+		}
+	}
+	return nil
+}
+
+// Add adds graphs as follows:
+// Nodes and arcs are moved (not copied) to the main graph.
+// Returns ErrDuplicateKey if any of the keys is duplicated.
+// Both the main and added graphs will point to the same node and arc objects.
+func (g *Graph) Add(graphs ...*Graph) error {
+
+	// Verify that there are no duplicates before starting to merge.
+	tmpMap := make(map[string]bool)
+	for k, _ := range g.nodes {
+		tmpMap[k] = true
+	}
+	for _, gg := range graphs {
+		for k, _ := range gg.nodes {
+			// Bail out if key already exists.
+			_, found := tmpMap[k]
+			if found {
+				return ErrDuplicateKey
+			}
+			tmpMap[k] = true
+		}
+	}
+
+	// We are good, start merging.
+	for _, gg := range graphs {
+
+		// Add nodes to new graph
+		for key, node := range gg.nodes {
+
+			// Add node to main graph.
 			g.nodes[key] = node
 		}
 	}
