@@ -50,7 +50,7 @@ func (g *Graph) ShortestPathWithHeuristic(startKey, endKey string, heuristic fun
 		// saved here for easy usage in following loop
 		distance := closedList[current].distanceFromStart
 
-		for successor, weight := range current.GetSuccessors() {
+		for successor, weight := range current.Successors() {
 			if _, ok := closedList[successor]; ok {
 				continue
 			}

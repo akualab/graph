@@ -12,42 +12,50 @@ import (
 
 // Create a type to implement the Viterbier interface.
 type vvalue struct {
-	f ScoreFunc
+	null bool
+	f    ScoreFunc
 }
 
-// Implements the Viterbier interface.
+// Score implements the Viterbier interface.
 func (v vvalue) Score(n int) float64 {
 	return v.f(n)
 }
 
+// IsNull implements the Viterbier interface.
+func (v vvalue) IsNull() bool {
+	return v.null
+}
+
 // Create a simple graph.
-func simpleGraph() *Graph {
+func simpleGraph() (*Graph, []interface{}) {
 
 	// Some sequence of probabilities. (rows correspond to states.)
-	obs := [][]float64{
+	scores := [][]float64{
 		{0.1, 0.1, 0.2, 0.4, 0.11, 0.11, 0.12, 0.14},
 		{0.4, 0.1, 0.3, 0.5, 0.21, 0.01, 0.12, 0.08},
 		{0.2, 0.2, 0.4, 0.5, 0.09, 0.11, 0.32, 0.444},
 	}
 
-	// Convert to log probabilities.
-	for i, v := range obs {
+	// Convert to log scores.
+	var n []interface{}
+	for i, v := range scores {
 		for j, _ := range v {
-			obs[i][j] = math.Log(obs[i][j])
+			scores[i][j] = math.Log(scores[i][j])
 		}
+		n = append(n, i)
 	}
 	// Define score functions to return state probabilities.
 	var s1Func = func(n interface{}) float64 {
-		return obs[0][n.(int)]
+		return scores[0][n.(int)]
 	}
 	var s2Func = func(n interface{}) float64 {
-		return obs[1][n.(int)]
+		return scores[1][n.(int)]
 	}
 	var s3Func = func(n interface{}) float64 {
-		return obs[2][n.(int)]
+		return scores[2][n.(int)]
 	}
 	var s5Func = func(n interface{}) float64 {
-		return obs[2][n.(int)]
+		return scores[2][n.(int)]
 	}
 	var finalFunc = func(n interface{}) float64 {
 		return 0
@@ -57,12 +65,12 @@ func simpleGraph() *Graph {
 	g := New()
 
 	// Create some nodes and assign values.
-	g.Set("s0", vvalue{}) // initial state
-	g.Set("s1", vvalue{s1Func})
-	g.Set("s2", vvalue{s2Func})
-	g.Set("s3", vvalue{s3Func})
-	g.Set("s5", vvalue{s5Func})
-	g.Set("s4", vvalue{finalFunc}) // final state
+	g.Set("s0", vvalue{null: true}) // initial state
+	g.Set("s1", vvalue{f: s1Func})
+	g.Set("s2", vvalue{f: s2Func})
+	g.Set("s3", vvalue{f: s3Func})
+	g.Set("s5", vvalue{f: s5Func})
+	g.Set("s4", vvalue{f: finalFunc, null: true}) // final state
 
 	// Make connections.
 	g.Connect("s0", "s1", 1)
@@ -79,39 +87,29 @@ func simpleGraph() *Graph {
 
 	// Convert transition probabilities to log.
 	g.ConvertToLogProbs()
-	return g
+	return g, n
 }
 
 // This example shows how to run a Viterbi decoder on a simple graph.
 func ExampleDecoder() {
 
-	var start, end *Node
 	var e error
 
 	// Create the graph.
-	g := simpleGraph()
+	g, sc := simpleGraph()
 	e = fmt.Errorf("simple graph:\n%s\n", g)
 	if e != nil {
 		panic(e)
 	}
 
-	// Define the start and end nodes.
-	start, e = g.Get("s0")
-	if e != nil {
-		panic(e)
-	}
-	if end, e = g.Get("s4"); e != nil {
-		panic(e)
-	}
-
 	// Create a decoder.
-	dec, e := NewDecoder(g, start, end)
+	dec, e := NewDecoder(g)
 	if e != nil {
 		panic(e)
 	}
 
 	// Find the optimnal sequence.
-	token := dec.Decode(8)
+	token := dec.Decode(sc)
 
 	// The token has the backtrace to find the optimal path.
 	fmt.Printf("\n\n>>>> FINAL: %s\n", token)

@@ -134,14 +134,14 @@ func TestDelete(t *testing.T) {
 	}
 
 	// test for orphaned connections
-	succ := g.get("2").GetSuccessors()
+	succ := g.get("2").Successors()
 	for n, _ := range succ {
 		if n == one {
 			t.Fail()
 		}
 	}
 
-	succ = g.get("3").GetSuccessors()
+	succ = g.get("3").Successors()
 	for n, _ := range succ {
 		if n == one {
 			t.Fail()
@@ -486,6 +486,50 @@ func ExampleGraph() {
 	err = dec.Decode(newG)
 	if err != nil {
 		fmt.Println(err)
+	}
+}
+
+func TestStartEnd(t *testing.T) {
+
+	g := New()
+
+	// set some nodes
+	n1 := g.Set("1", 10)
+	n2 := g.Set("2", 20)
+	g.Set("3", 30)
+	g.Set("4", 40)
+	g.Set("5", 50)
+	g.Set("6", 60)
+
+	g.Connect("1", "2", 0)
+	g.Connect("1", "3", 0)
+	g.Connect("1", "4", 0)
+	g.Connect("5", "2", 0)
+	g.Connect("5", "3", 0)
+
+	p := g.Predecessors(n1)
+	if len(p) != 0 {
+		t.Fatalf("expected 0 predecessors, got %d", len(p))
+	}
+	p = g.Predecessors(n2)
+	if len(p) != 2 {
+		t.Fatalf("expected 2 predecessors, got %d", len(p))
+	}
+	s := n1.Successors()
+	if len(s) != 3 {
+		t.Fatalf("expected 3 successors, got %d", len(s))
+	}
+	s = n2.Successors()
+	if len(s) != 0 {
+		t.Fatalf("expected 0 successors, got %d", len(s))
+	}
+	start := g.StartNodes()
+	if len(start) != 3 {
+		t.Fatalf("expected 3 start nodes, got %d", len(start))
+	}
+	end := g.EndNodes()
+	if len(end) != 4 {
+		t.Fatalf("expected 4 end nodes, got %d", len(end))
 	}
 }
 

@@ -35,8 +35,8 @@ var (
 	ErrDuplicateKey = errors.New("cannot merge node because key already exists")
 )
 
-// GetSuccessors returns the map of successors.
-func (node *Node) GetSuccessors() map[*Node]float64 {
+// Successors returns the map of successors.
+func (node *Node) Successors() map[*Node]float64 {
 	if node == nil {
 		return nil
 	}
@@ -130,6 +130,56 @@ func (g *Graph) GetAll() (all []*Node) {
 		all = append(all, v)
 	}
 	return
+}
+
+// Predecessors returns a slice with the nodes that connect
+// to this node.
+func (g *Graph) Predecessors(node *Node) []*Node {
+
+	pred := make(map[*Node]bool)
+	var res []*Node
+
+	// Mark nodes that have predesessors.
+	for _, n := range g.nodes {
+		yes, _ := n.IsConnected(node)
+		if yes {
+			pred[n] = true
+		}
+	}
+	for v, _ := range pred {
+		res = append(res, v)
+	}
+	return res
+}
+
+// StartNodes returns a slice of start nodes.
+// A start node is a node with no predescessors.
+func (g *Graph) StartNodes() []*Node {
+
+	var res []*Node
+
+	// Find nodes that have predesessors.
+	for _, node := range g.nodes {
+		if len(g.Predecessors(node)) == 0 {
+			res = append(res, node)
+		}
+	}
+	return res
+}
+
+// EndNodes returns a slice of end nodes.
+// An end node is a node with no successors.
+func (g *Graph) EndNodes() []*Node {
+
+	var res []*Node
+
+	// Find nodes that have successors.
+	for _, node := range g.nodes {
+		if len(node.successors) == 0 {
+			res = append(res, node)
+		}
+	}
+	return res
 }
 
 // Get node by key, returns an error if there is no node for key.

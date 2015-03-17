@@ -21,20 +21,26 @@ import (
 //   type nodeValue struct {
 //      // Plug your scoring function here.
 //      f ScoreFunc
+//      null bool
 //   }
 //
-// and the method ScoreFunc which implements the Viterbier interface:
+// implements the Viterbier interface as follows:
 //
-//   func (v nodeValue) ScoreFunc(n int) float64 {
-//      return v.f(n)
+//   func (v nodeValue) Score(o interface{}) float64 {
+//      return v.f(o)
+//   }
+//
+//   func (v nodeValue) IsNull() bool {
+//      return v.null
 //   }
 //
 type Viterbier interface {
 	// Scoring function.
 	Score(obs interface{}) (score float64)
+	IsNull() bool
 }
 
-// ScoreFunc is the scoring function type.
+// ScoreFunc is the type of the scoring function.
 type ScoreFunc func(obs interface{}) float64
 
 // Token is used to implement the token-passing algorithm.
@@ -43,7 +49,7 @@ type Token struct {
 	Score float64
 	// The optimal node sequence.
 	Node *Node
-	// Backtrace
+	// Backtrace, list of linked tokens.
 	BT *Token
 	// Sequence index.
 	Index int
@@ -52,43 +58,56 @@ type Token struct {
 // Decoder finds the sequence of nodes in the graph that maximizes
 // the score of a sequence of N observations using the Viterbi algorithm.
 // (see http://en.wikipedia.org/wiki/Viterbi_algorithm)
-// The node values must be of type Token.
+// The node values must implement the Viterbier interface.
 type Decoder struct {
 	graph  *Graph
 	start  *Node
 	end    *Node
 	active []*Token
+	hyps   map[*Node][]*Token
 }
 
 // NewDecoder creates a new Viterbi decoder.
-func NewDecoder(g *Graph, start, end *Node) (d *Decoder, e error) {
+// Graph must have exactly one start and one end node. Will return error otherwise.
+func NewDecoder(g *Graph) (*Decoder, error) {
 
-	// Check that all values in graph are of type Token.
-	e = g.checkViterbier()
-	if e != nil {
-		return
+	// Search for start and end nodes.
+	starts := g.StartNodes()
+	if len(starts) != 1 {
+		return nil, fmt.Errorf("graph must have exactly one start node. Found: %d", len(starts))
+	}
+	ends := g.EndNodes()
+	if len(ends) != 1 {
+		return nil, fmt.Errorf("graph must have exactly one end node. Found: %d", len(ends))
 	}
 
-	d = &Decoder{graph: g, start: start, end: end, active: []*Token{}}
+	// Check that all values in graph implement the Viterbier interface.
+	e := g.checkViterbier()
+	if e != nil {
+		return nil, e
+	}
+
+	d := &Decoder{graph: g, start: starts[0], end: ends[0], active: []*Token{}}
 
 	// Initialization. First active hypothesis for start node.
 	t := &Token{
 		Score: 0,
-		Node:  start,
+		Node:  starts[0],
 		BT:    nil,
 		Index: -1,
 	}
 	d.active = append(d.active, t)
 
-	return
+	return d, nil
 }
 
 // Decode returns the Viterbi path and total score.
-// The node values must be of type Viterbier.
-func (d *Decoder) Decode(N int) *Token {
+// The argument is a slice of observations.
+func (d *Decoder) Decode(obs []interface{}) *Token {
 
-	for i := 0; i < N; i++ {
-		d.Propagate(i)
+	for k, o := range obs {
+		glog.V(3).Infof("propagate obs with index: %4d, value: %+v", k, o)
+		d.propagate(k, o)
 	}
 
 	var best *Token
@@ -102,32 +121,55 @@ func (d *Decoder) Decode(N int) *Token {
 	return best
 }
 
+func (d *Decoder) newToken(prev *Token, node *Node, idx int, score float64) *Token {
+
+	nt := &Token{
+		Score: score,
+		Node:  node,
+		BT:    prev,
+		Index: idx,
+	}
+
+	// No null nodes except for end node.
+	if !node.Value().(Viterbier).IsNull() || node == d.end {
+		d.hyps[node] = append(d.hyps[node], nt)
+	}
+	return nt
+}
+
+func (d *Decoder) pass(t *Token, idx int, o interface{}) {
+
+	for node, w := range t.Node.successors {
+		val := node.Value().(Viterbier)
+		glog.V(6).Infof("pass from [%s] to [%s] null:%t, token: [%+v]", t.Node.key, node.key, val.IsNull(), t)
+		_, found := d.hyps[node]
+		if !found {
+			d.hyps[node] = []*Token{}
+		}
+
+		// Keep passing if node is null.
+		if val.IsNull() {
+			nt := d.newToken(t, node, idx, t.Score+w)
+			glog.V(6).Infof("null node: %s, token: [%+v]", node.key, nt)
+			d.pass(nt, idx, o)
+		} else {
+			f := node.value.(Viterbier).Score // scoring function for this node.
+			nt := d.newToken(t, node, idx, t.Score+w+f(o))
+			glog.V(6).Infof("emit node: %s, token: [%+v]", node.key, nt)
+		}
+	}
+}
+
 // Propagate tokens from nodes to successors.
 // Keeps the tokens that maximizes the score.
-func (d *Decoder) Propagate(n int) {
-
-	glog.V(3).Infof("propagate: %d", n)
+func (d *Decoder) propagate(idx int, o interface{}) {
 
 	// Data structure to hold candidate hypothesis before choosing the most likely.
-	data := make(map[*Node][]*Token)
+	// TODO consider avoid realloc memory, profile and potentially reduce garbage
+	d.hyps = make(map[*Node][]*Token)
 
 	for _, t := range d.active {
-		for node, w := range t.Node.successors {
-			glog.V(3).Infof("node:  %s, token: %s", node.key, t)
-			_, found := data[node]
-			if !found {
-				data[node] = []*Token{}
-			}
-			// Copy and update Token.
-			f := node.value.(Viterbier).Score // scoring function for this node.
-			nt := &Token{
-				Score: t.Score + w + f(n),
-				Node:  node,
-				BT:    t,
-				Index: n,
-			}
-			data[node] = append(data[node], nt)
-		}
+		d.pass(t, idx, o)
 	}
 
 	// We have all the candidates for all nodes. Keep the most likely.
@@ -135,9 +177,9 @@ func (d *Decoder) Propagate(n int) {
 	var active []*Token
 	for _, node := range d.graph.nodes {
 
-		candidates := data[node]
+		candidates := d.hyps[node]
 		var best *Token
-		max := -math.MaxFloat64
+		max := math.Inf(-1)
 		for _, t := range candidates {
 			if t.Score > max {
 				max = t.Score
@@ -152,8 +194,7 @@ func (d *Decoder) Propagate(n int) {
 	// Replace list of active hypotheses.
 	d.active = active
 
-	if glog.V(3) {
-		glog.Info("active list:")
+	if glog.V(6) {
 		printActive(active)
 	}
 	return
@@ -173,7 +214,7 @@ func (g *Graph) checkViterbier() error {
 func printActive(active []*Token) {
 
 	for k, v := range active {
-		fmt.Printf("%4d: %s\n", k, v)
+		glog.Infof("active:%4d bt:%s", k, v)
 	}
 }
 
@@ -197,13 +238,14 @@ func (t *Token) BacktraceString() string {
 	bt = t.Backtrace(bt)
 
 	buf := new(bytes.Buffer)
-	_, err := buf.WriteString("| ")
-	if err != nil {
-		panic(err)
-	}
+	//	_, err := buf.WriteString("| ")
+	//	if err != nil {
+	//		panic(err)
+	//	}
 	for i, _ := range bt {
 		v := bt[len(bt)-i-1]
-		st := fmt.Sprintf("%d:%s:%.2f | ", v.Index, v.Node.key, v.Score)
+		//		st := fmt.Sprintf("{%d:%s:%.2f} | ", v.Index, v.Node.key, v.Score)
+		st := fmt.Sprintf("{%d,%s,%.2f},", v.Index, v.Node.key, v.Score)
 		_, err := buf.WriteString(st)
 		if err != nil {
 			panic(err)
@@ -215,6 +257,6 @@ func (t *Token) BacktraceString() string {
 
 // String returns a string with token and backtrace information.
 func (t *Token) String() string {
-	return fmt.Sprintf("n: %2d, node: %4s, sc: %4.2f, bt: %s ",
+	return fmt.Sprintf("n: %2d, node: %4s, sc: %4.2f, bt: {%s} ",
 		t.Index, t.Node.key, t.Score, t.BacktraceString())
 }
