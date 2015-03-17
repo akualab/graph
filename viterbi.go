@@ -106,12 +106,12 @@ func NewDecoder(g *Graph) (*Decoder, error) {
 func (d *Decoder) Decode(obs []interface{}) *Token {
 
 	for k, o := range obs {
-		glog.V(3).Infof("propagate obs with index: %4d, value: %+v", k, o)
+		glog.V(5).Infof("propagate obs with index: %4d, value: %+v", k, o)
 		d.propagate(k, o)
 	}
 
 	var best *Token
-	max := -math.MaxFloat64
+	max := math.Inf(-1)
 	for _, t := range d.active {
 		if t.Score > max {
 			max = t.Score
@@ -142,12 +142,8 @@ func (d *Decoder) pass(t *Token, idx int, o interface{}) {
 	for node, w := range t.Node.successors {
 		val := node.Value().(Viterbier)
 		glog.V(6).Infof("pass from [%s] to [%s] null:%t, token: [%+v]", t.Node.key, node.key, val.IsNull(), t)
-		_, found := d.hyps[node]
-		if !found {
-			d.hyps[node] = []*Token{}
-		}
 
-		// Keep passing if node is null.
+		// Keep passing recursively until finding an emitting node.
 		if val.IsNull() {
 			nt := d.newToken(t, node, idx, t.Score+w)
 			glog.V(6).Infof("null node: %s, token: [%+v]", node.key, nt)
@@ -164,10 +160,14 @@ func (d *Decoder) pass(t *Token, idx int, o interface{}) {
 // Keeps the tokens that maximizes the score.
 func (d *Decoder) propagate(idx int, o interface{}) {
 
-	// Data structure to hold candidate hypothesis before choosing the most likely.
-	// TODO consider avoid realloc memory, profile and potentially reduce garbage
+	// Init data structure to hold candidate hypothesis before choosing the most likely.
+	// TODO consider avoid realloc memory
 	d.hyps = make(map[*Node][]*Token)
+	for _, node := range d.graph.GetAll() {
+		d.hyps[node] = []*Token{}
+	}
 
+	// Iterate.
 	for _, t := range d.active {
 		d.pass(t, idx, o)
 	}
@@ -218,10 +218,12 @@ func printActive(active []*Token) {
 	}
 }
 
-// Backtrace returns a slice of tokens.
+// Backtrace returns the Viterbi backtrace as an ordered
+// slice of tokens.
 func (t *Token) Backtrace(tokens []*Token) []*Token {
 
 	if t.BT == nil {
+		tokens = append(tokens, t)
 		return tokens
 	}
 	//tokens = append(tokens, t.BT)
@@ -238,19 +240,13 @@ func (t *Token) BacktraceString() string {
 	bt = t.Backtrace(bt)
 
 	buf := new(bytes.Buffer)
-	//	_, err := buf.WriteString("| ")
-	//	if err != nil {
-	//		panic(err)
-	//	}
 	for i, _ := range bt {
 		v := bt[len(bt)-i-1]
-		//		st := fmt.Sprintf("{%d:%s:%.2f} | ", v.Index, v.Node.key, v.Score)
 		st := fmt.Sprintf("{%d,%s,%.2f},", v.Index, v.Node.key, v.Score)
 		_, err := buf.WriteString(st)
 		if err != nil {
 			panic(err)
 		}
-
 	}
 	return buf.String()
 }
