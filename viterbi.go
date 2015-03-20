@@ -214,7 +214,7 @@ func (g *Graph) checkViterbier() error {
 func printActive(active []*Token) {
 
 	for k, v := range active {
-		glog.Infof("active:%4d bt:%s", k, v)
+		glog.Infof("active:%4d bt:%s", k, v.PrintBacktrace())
 	}
 }
 
@@ -226,15 +226,59 @@ func (t *Token) Backtrace(tokens []*Token) []*Token {
 		tokens = append(tokens, t)
 		return tokens
 	}
-	//tokens = append(tokens, t.BT)
 	tokens = append(tokens, t)
 	tokens = t.BT.Backtrace(tokens)
 	return tokens
 }
 
+// IsNull returns true if the node associated to this token is
+// a Null node or nil.
+func (t *Token) IsNull() bool {
+
+	if t.Node.Value() == nil {
+		return true
+	}
+	return t.Node.Value().(Viterbier).IsNull()
+}
+
+// A Hyp is a type to represent a hypothesis returned by the decoder.
+// The underlying type is slice of tokens.
+// Hyp methods are used to extract information.
+type Hyp []*Token
+
+// Best returns the best hypothesis.
+// The receiver "t" is the token returned by the decoder.
+// This method will compute the backtrace ordered by time.
+func (t *Token) Best() Hyp {
+
+	bt := t.Backtrace([]*Token{})
+	for i, j := 0, len(bt)-1; i < j; i, j = i+1, j-1 {
+		bt[i], bt[j] = bt[j], bt[i]
+	}
+	return bt
+}
+
+// Labels returns the sequence of labels in a hypothesis.
+// If noNull is true, null nodes are not included in the
+// returned value.
+func (h Hyp) Labels(noNull bool) []string {
+	var labels []string
+	for _, t := range h {
+		if noNull && t.IsNull() {
+			continue
+		}
+		labels = append(labels, t.Node.Key())
+	}
+	return labels
+}
+
 // BacktraceString returns the backtrace as a string
 // with the sequence of node keys.
 func (t *Token) BacktraceString() string {
+
+	if t == nil {
+		return ""
+	}
 
 	var bt []*Token
 	bt = t.Backtrace(bt)
@@ -251,8 +295,19 @@ func (t *Token) BacktraceString() string {
 	return buf.String()
 }
 
-// String returns a string with token and backtrace information.
-func (t *Token) String() string {
+// PrintBacktrace returns a string with token and backtrace information.
+func (t *Token) PrintBacktrace() string {
 	return fmt.Sprintf("n: %2d, node: %4s, sc: %4.2f, bt: {%s} ",
 		t.Index, t.Node.key, t.Score, t.BacktraceString())
+}
+
+// String prints token.
+func (t *Token) String() string {
+
+	next := ""
+	if t.BT != nil {
+		next = t.BT.Node.key
+	}
+	return fmt.Sprintf("n:%d, node:%s, sc:%4.2f, next:%s",
+		t.Index, t.Node.key, t.Score, next)
 }
