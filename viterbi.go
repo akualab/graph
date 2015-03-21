@@ -131,7 +131,8 @@ func (d *Decoder) newToken(prev *Token, node *Node, idx int, score float64) *Tok
 	}
 
 	// No null nodes except for end node.
-	if !node.Value().(Viterbier).IsNull() || node == d.end {
+	//	if !node.Value().(Viterbier).IsNull() || node == d.end {
+	if !node.Value().(Viterbier).IsNull() {
 		d.hyps[node] = append(d.hyps[node], nt)
 	}
 	return nt
@@ -142,6 +143,16 @@ func (d *Decoder) pass(t *Token, idx int, o interface{}) {
 	for node, w := range t.Node.successors {
 		val := node.Value().(Viterbier)
 		glog.V(6).Infof("pass from [%s] to [%s] null:%t, token: [%+v]", t.Node.key, node.key, val.IsNull(), t)
+
+		// Reached end node.
+		if node == d.end {
+			// Discard this hyp. We need the last node to be an emitting node.
+			// TODO: for now we are ignoring the end node. Do we need an end node?
+			nt := d.newToken(t, node, idx, math.Inf(-1))
+			glog.V(6).Info("end node reached")
+			d.pass(nt, idx, o)
+			return
+		}
 
 		// Keep passing recursively until finding an emitting node.
 		if val.IsNull() {
