@@ -87,16 +87,17 @@ func NewDecoder(g *Graph) (*Decoder, error) {
 		return nil, e
 	}
 
-	d := &Decoder{graph: g, start: starts[0], end: ends[0], active: []*Token{}}
+	d := &Decoder{graph: g, start: starts[0], end: ends[0]}
+	// d := &Decoder{graph: g, start: starts[0], end: ends[0], active: []*Token{}}
 
-	// Initialization. First active hypothesis for start node.
-	t := &Token{
-		Score: 0,
-		Node:  starts[0],
-		BT:    nil,
-		Index: -1,
-	}
-	d.active = append(d.active, t)
+	// // Initialization. First active hypothesis for start node.
+	// t := &Token{
+	// 	Score: 0,
+	// 	Node:  starts[0],
+	// 	BT:    nil,
+	// 	Index: -1,
+	// }
+	// d.active = append(d.active, t)
 
 	return d, nil
 }
@@ -104,24 +105,24 @@ func NewDecoder(g *Graph) (*Decoder, error) {
 // Decode returns the Viterbi path and total score.
 // The argument is a slice of observations.
 func (d *Decoder) Decode(obs []interface{}) *Token {
+	glog.V(3).Infof("start decoding sequence with %d observations", len(obs))
 
+	// Initialization. First active hypothesis for start node.
+	t := &Token{
+		Score: 0,
+		Node:  d.start,
+		BT:    nil,
+		Index: -1,
+	}
+	d.active = []*Token{t}
 	for k, o := range obs {
 		glog.V(5).Infof("propagate obs with index: %4d, value: %+v", k, o)
 		d.propagate(k, o)
 	}
-
-	var best *Token
-	max := math.Inf(-1)
-	for _, t := range d.active {
-		if t.Score > max {
-			max = t.Score
-			best = t
-		}
-	}
-	return best
+	return maxScore(d.active)
 }
 
-func (d *Decoder) newToken(prev *Token, node *Node, idx int, score float64) *Token {
+func (d *Decoder) createToken(prev *Token, node *Node, idx int, score float64) *Token {
 
 	nt := &Token{
 		Score: score,
@@ -130,8 +131,7 @@ func (d *Decoder) newToken(prev *Token, node *Node, idx int, score float64) *Tok
 		Index: idx,
 	}
 
-	// No null nodes except for end node.
-	//	if !node.Value().(Viterbier).IsNull() || node == d.end {
+	// No null nodes.
 	if !node.Value().(Viterbier).IsNull() {
 		d.hyps[node] = append(d.hyps[node], nt)
 	}
@@ -145,23 +145,22 @@ func (d *Decoder) pass(t *Token, idx int, o interface{}) {
 		glog.V(6).Infof("pass from [%s] to [%s] null:%t, token: [%+v]", t.Node.key, node.key, val.IsNull(), t)
 
 		// Reached end node.
-		if node == d.end {
+		switch {
+		case node == d.end:
 			// Discard this hyp. We need the last node to be an emitting node.
 			// TODO: for now we are ignoring the end node. Do we need an end node?
-			nt := d.newToken(t, node, idx, math.Inf(-1))
+			nt := d.createToken(t, node, idx, math.Inf(-1))
 			glog.V(6).Info("end node reached")
 			d.pass(nt, idx, o)
-			return
-		}
-
-		// Keep passing recursively until finding an emitting node.
-		if val.IsNull() {
-			nt := d.newToken(t, node, idx, t.Score+w)
+		case val.IsNull():
+			// Keep passing recursively until finding an emitting node.
+			nt := d.createToken(t, node, idx, t.Score+w)
 			glog.V(6).Infof("null node: %s, token: [%+v]", node.key, nt)
 			d.pass(nt, idx, o)
-		} else {
+		default:
+			// Emitting node.
 			f := node.value.(Viterbier).Score // scoring function for this node.
-			nt := d.newToken(t, node, idx, t.Score+w+f(o))
+			nt := d.createToken(t, node, idx, t.Score+w+f(o))
 			glog.V(6).Infof("emit node: %s, token: [%+v]", node.key, nt)
 		}
 	}
@@ -187,16 +186,7 @@ func (d *Decoder) propagate(idx int, o interface{}) {
 	// Remove others.
 	var active []*Token
 	for _, node := range d.graph.nodes {
-
-		candidates := d.hyps[node]
-		var best *Token
-		max := math.Inf(-1)
-		for _, t := range candidates {
-			if t.Score > max {
-				max = t.Score
-				best = t
-			}
-		}
+		best := maxScore(d.hyps[node])
 		if best != nil {
 			active = append(active, best)
 		}
@@ -209,6 +199,19 @@ func (d *Decoder) propagate(idx int, o interface{}) {
 		printActive(active)
 	}
 	return
+}
+
+// Returns token with max score.
+func maxScore(tokens []*Token) *Token {
+	var best *Token
+	max := math.Inf(-1)
+	for _, t := range tokens {
+		if t.Score > max {
+			max = t.Score
+			best = t
+		}
+	}
+	return best
 }
 
 func (g *Graph) checkViterbier() error {
@@ -225,6 +228,7 @@ func (g *Graph) checkViterbier() error {
 func printActive(active []*Token) {
 
 	for k, v := range active {
+		glog.Infof("print active for token: %+v", v)
 		glog.Infof("active:%4d bt:%s", k, v.PrintBacktrace())
 	}
 }
@@ -233,6 +237,10 @@ func printActive(active []*Token) {
 // slice of tokens.
 func (t *Token) Backtrace(tokens []*Token) []*Token {
 
+	if t == nil {
+		glog.Error("requested backtrace with nil token")
+		return nil
+	}
 	if t.BT == nil {
 		tokens = append(tokens, t)
 		return tokens
@@ -308,6 +316,11 @@ func (t *Token) BacktraceString() string {
 
 // PrintBacktrace returns a string with token and backtrace information.
 func (t *Token) PrintBacktrace() string {
+	// if t == nil {
+	// 	glog.Errorf("this shouldn't happen, token: %+v", t)
+	// 	return "debug: got a nil token in PrintBacktrace, couldn't print bt, need to investigate"
+	// }
+
 	return fmt.Sprintf("n: %2d, node: %4s, sc: %4.2f, bt: {%s} ",
 		t.Index, t.Node.key, t.Score, t.BacktraceString())
 }
