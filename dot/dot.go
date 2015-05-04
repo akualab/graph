@@ -18,10 +18,9 @@ package dot
 
 import (
 	"fmt"
-	"strconv"
-
-	graphviz "code.google.com/p/gographviz"
 	"github.com/akualab/graph"
+	graphviz "github.com/awalterschulze/gographviz"
+	"strconv"
 )
 
 type GraphDOT struct {
@@ -39,7 +38,7 @@ func (gd *GraphDOT) SetStrict(strict bool) {}
 func (gd *GraphDOT) SetDir(directed bool)  {}
 func (gd *GraphDOT) SetName(name string)   {}
 
-func (gd *GraphDOT) AddEdge(src, srcPort, dst, dstPort string, directed bool, attrs map[string]string) {
+func (gd *GraphDOT) AddEdge(src, dst string, directed bool, attrs map[string]string) {
 
 	w, err := strconv.ParseFloat(attrs["label"], 64)
 	if err != nil {
@@ -58,6 +57,11 @@ func (gd *GraphDOT) AddNode(parentGraph string, name string, attrs map[string]st
 func (gd *GraphDOT) AddAttr(parentGraph string, field, value string)                  {}
 func (gd *GraphDOT) AddSubGraph(parentGraph string, name string, attrs map[string]string) {
 }
+func (gd *GraphDOT) AddPortEdge(src, srcPort, dst, dstPort string, directed bool, attrs map[string]string) {
+}
+
+// TODO
+func (gd *GraphDOT) String() string { return "" }
 
 // Returns a *graph.Graph struct.
 func (gd *GraphDOT) Graph() *graph.Graph {
@@ -74,10 +78,10 @@ func DOT(g *graph.Graph, name string) string {
 		src := node.Key()
 		gv.AddNode(name, src, nil)
 
-		for succ, weight := range node.GetSuccesors() {
+		for succ, weight := range node.Successors() {
 			dst := succ.Key()
 			sw := map[string]string{"label": fmt.Sprintf("%f", weight)}
-			gv.AddEdge(src, "", dst, "", true, sw)
+			gv.AddEdge(src, dst, true, sw)
 		}
 	}
 
