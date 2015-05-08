@@ -1,10 +1,9 @@
 package dot
 
 import (
-	"testing"
-
-	graphviz "code.google.com/p/gographviz"
 	"github.com/akualab/graph"
+	graphviz "github.com/awalterschulze/gographviz"
+	"testing"
 )
 
 // Reads a DOT file.
@@ -27,7 +26,6 @@ func TestDOTGraphREAD(t *testing.T) {
 	graphviz.Analyse(parsed, dot)
 
 	t.Logf("\n%v\n", dot.graph)
-
 }
 
 func TestConvertToDOT(t *testing.T) {
