@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"launchpad.net/goyaml"
@@ -23,7 +24,7 @@ func TestYAML2(t *testing.T) {
 	g0 := sampleGraph(t)
 
 	// Create sample graph JSON file in temp dir for testing.
-	fn := os.TempDir() + "graph.yaml"
+	fn := filepath.Join(os.TempDir(), "graph.yaml")
 	t.Logf("yaml file: %s", fn)
 	err := ioutil.WriteFile(fn, []byte(graphData), 0644)
 	if err != nil {
@@ -51,7 +52,7 @@ func TestYAML2(t *testing.T) {
 	if eb != nil {
 		t.Fatal(eb)
 	}
-	fn = os.TempDir() + "graph2.yaml"
+	fn = filepath.Join(os.TempDir(), "graph2.yaml")
 	err = ioutil.WriteFile(fn, b, 0644)
 	if err != nil {
 		panic(err)
@@ -63,7 +64,7 @@ func TestJSON2(t *testing.T) {
 
 	// Get the sample graph.
 	g0 := sampleGraph(t)
-	fn := os.TempDir() + "graph.json"
+	fn := filepath.Join(os.TempDir(), "graph.json")
 	t.Logf("json file: %s", fn)
 
 	// Write YAML file.
